@@ -196,7 +196,6 @@
         const res = await fetch(SCRIPT_URL);
         const data = await res.json();
         if (data && data.success) {
-          // Si el inventario en Sheets está vacío (0 filas), se actualiza a lista vacía exactamente
           if (Array.isArray(data.inventario)) {
             inventario = data.inventario.map(p => ({
               SKU: p.SKU || p.sku,
@@ -220,7 +219,7 @@
         return '<option value="">-- No hay productos en inventario actualmente --</option>';
       }
       return inventario.map(p => 
-        `<option value="${p.SKU}" data-stock="${p.stock}">${p.nombre} [${p.unidad}] - Disp: ${p.stock}</option>`
+        `<option value="${p.SKU}" data-stock="${p.stock}">${p.nombre} [${p.unidad}] - Disp:${p.stock}</option>`
       ).join('');
     }
 
@@ -297,7 +296,7 @@
       document.getElementById('modal-pin').classList.add('hidden');
     }
 
-        async function procesarEnvioConPin(e) {
+    async function procesarEnvioConPin(e) {
       if (e) e.preventDefault();
       const pin = document.getElementById('input-pin').value.trim();
       if (!pin) {
@@ -344,7 +343,7 @@
       const now = new Date();
       const idPedido = 'PED-' + now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '-' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
       const fechaHoraLegible = now.toLocaleString('es-CO');
-      const resumenProductos = items.map(it => `${it.cantidad} ${it.unidad} ${it.nombre}`).join('; ');
+      const resumenProductos = items.map(it => `${it.cantidad} ${it.unidad}${it.nombre}`).join('; ');
 
       const btn = document.getElementById('btn-confirmar-pin');
       btn.disabled = true;
@@ -369,9 +368,8 @@
         
         if (resData && resData.success) {
           cerrarModalPin();
-          alert(`¡Orden ${idPedido} AUTORIZADA por ${nombreAutoriza} y asentada exitosamente en la base de datos de Google Sheets!`);
+          alert(`¡Orden ${idPedido} AUTORIZADA por${nombreAutoriza} y asentada exitosamente en la base de datos de Google Sheets!`);
           
-          // Limpiar formulario
           document.getElementById('sol-empresa').value = '';
           document.getElementById('sol-reclama').value = '';
           document.getElementById('sol-destino').value = '';
@@ -387,7 +385,7 @@
         ping.src = `${SCRIPT_URL}?${params}`;
         
         cerrarModalPin();
-        alert(`¡Orden ${idPedido} AUTORIZADA por ${nombreAutoriza} y enviada a Bodega MAF!`);
+        alert(`¡Orden ${idPedido} AUTORIZADA por${nombreAutoriza} y enviada a Bodega MAF!`);
         
         document.getElementById('sol-empresa').value = '';
         document.getElementById('sol-reclama').value = '';
@@ -419,8 +417,7 @@
         <div style="font-size:10px;"><strong>Fecha:</strong> ${fecha}</div>
         <div style="font-size:10px;"><strong>Empresa:</strong> ${empresa}</div>
         <div style="font-size:10px;"><strong>Reclama:</strong> ${reclama}</div>
-        <div style="font-size:10px;"><strong>Autorizó:</strong> ${autoriza}</div>
-        ${destino ? `<div style="font-size:10px;"><strong>Destino:</strong> ${destino}</div>` : ''}
+        <div style="font-size:10px;"><strong>Autorizó:</strong> ${autoriza}</div>${destino ? `<div style="font-size:10px;"><strong>Destino:</strong> ${destino}</div>` : ''}
         <hr style="border-top:1px dashed #000; margin: 4px 0;">
         <div style="font-weight:bold; font-size:10px; margin-bottom:3px;">PRODUCTOS SOLICITADOS</div>
         ${filasHtml}
