@@ -1,326 +1,2565 @@
-/**
- * API REST BODEGA MAF - VERSIÓN FINAL CON PEDIDOS EMPRESA Y GESTIÓN EN VIVO
- */
-const SHEET_INVENTARIO = 'INVENTARIO_ACTUAL';
-const SHEET_ENTRADAS = 'ENTRADAS';
-const SHEET_SALIDAS = 'SALIDAS';
-const SHEET_KARDEX = 'MOVIMIENTOS_KARDEX';
-const SHEET_CONTACTOS = 'CONTACTOS';
-const SHEET_CIERRES = 'CIERRES_DIARIOS';
-const SHEET_PEDIDOS = 'PEDIDOS_EMPRESA';
-const SHEET_AUTORIZADORES = 'AUTORIZADORES';
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BODEGA MAF - Sistema WMS Logístico</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- SheetJS para Excel (.xlsx) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- html2canvas para descargar imágenes de comprobantes y cierres -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-function doGet(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  try {
-    return jsonResponse({
-      success: true,
-      inventario: getSheetData(ss.getSheetByName(SHEET_INVENTARIO)),
-      contactos: getSheetData(ss.getSheetByName(SHEET_CONTACTOS)),
-      movimientos: getSheetData(ss.getSheetByName(SHEET_KARDEX)),
-      cierres: getSheetData(ss.getSheetByName(SHEET_CIERRES)),
-      pedidos: getSheetData(ss.getSheetByName(SHEET_PEDIDOS)),
-      autorizadores: getSheetData(ss.getSheetByName(SHEET_AUTORIZADORES))
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Oculto en pantalla normal */
+    #area-impresion-pos {
+      display: none;
+    }
+
+    /* Reglas para impresión térmica POS (58mm / 80mm) */
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #area-impresion-pos, #area-impresion-pos * {
+        visibility: visible !important;
+      }
+      #area-impresion-pos {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 58mm !important;
+        margin: 0 !important;
+        padding: 4px !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 11px !important;
+        line-height: 1.25 !important;
+        color: #000 !important;
+        background: #fff !important;
+      }
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-blue-600 selection:text-white">
+
+  <!-- ==================== MODAL DE AUTENTICACIÓN / SESIÓN ==================== -->
+  <div id="modal-login" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 border border-slate-200 text-center relative overflow-hidden">
+      <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-500"></div>
+      <div class="w-16 h-16 bg-blue-600 rounded-2xl mx-auto flex items-center justify-center text-white text-2xl font-extrabold shadow-lg shadow-blue-500/30 mb-4 tracking-wider">
+        MAF
+      </div>
+      <h2 class="text-2xl font-black text-slate-900 tracking-tight">BODEGA MAF</h2>
+      <p class="text-[11px] text-slate-500 font-bold uppercase tracking-widest mt-1 mb-6">WMS Logístico & Despachos</p>
+      
+      <form onsubmit="ejecutarLogin(event)" class="space-y-4 text-left">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Operador / Usuario</label>
+          <div class="relative">
+            <i class="fa-solid fa-user absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
+            <input type="text" id="login-usuario" required placeholder="Nombre o cargo" value="operador" class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:outline-none text-sm font-semibold text-slate-800 transition">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">Clave de Acceso</label>
+          <div class="relative">
+            <i class="fa-solid fa-lock absolute left-3.5 top-3.5 text-slate-400 text-xs"></i>
+            <input type="password" id="login-clave" required placeholder="••••••••" value="maf2026" class="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 focus:outline-none text-sm font-semibold text-slate-800 transition">
+          </div>
+        </div>
+        <button type="submit" class="w-full mt-2 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-white font-bold py-3 rounded-xl transition duration-150 shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2 text-sm">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> Iniciar Turno en Bodega
+        </button>
+      </form>
+      <p class="text-[11px] text-slate-400 mt-5">Sesión permanente. No se cierra al refrescar.</p>
+    </div>
+  </div>
+
+  <!-- ==================== ENCABEZADO / NAVBAR ==================== -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-md shadow-blue-600/20">
+            M
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-base font-extrabold tracking-tight text-slate-900 leading-none">BODEGA MAF</span>
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-blue-50 text-blue-700 border border-blue-200/60 uppercase">Inírida</span>
+            </div>
+            <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Control de Custodia & Despachos</p>
+          </div>
+        </div>
+
+        <!-- Pestañas Desktop -->
+        <nav class="hidden md:flex items-center bg-slate-100 p-1.5 rounded-2xl gap-1 border border-slate-200/60 text-xs font-bold">
+          <button onclick="cambiarPestana('despacho')" id="tab-btn-despacho" class="btn-tab px-3.5 py-2 rounded-xl text-slate-600 hover:text-blue-600 transition flex items-center gap-2">
+            <i class="fa-solid fa-truck-ramp-box"></i> Despacho (Salida)
+          </button>
+          <button onclick="cambiarPestana('llegada')" id="tab-btn-llegada" class="btn-tab px-3.5 py-2 rounded-xl text-slate-600 hover:text-blue-600 transition flex items-center gap-2">
+            <i class="fa-solid fa-dolly"></i> Entrada de Mercancía
+          </button>
+          <button onclick="cambiarPestana('catalogo')" id="tab-btn-catalogo" class="btn-tab px-3.5 py-2 rounded-xl text-slate-600 hover:text-blue-600 transition flex items-center gap-2">
+            <i class="fa-solid fa-boxes-stacked"></i> Catálogo Maestro
+          </button>
+          <button onclick="cambiarPestana('movimientos')" id="tab-btn-movimientos" class="btn-tab px-3.5 py-2 rounded-xl text-slate-600 hover:text-blue-600 transition flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left"></i> Kárdex / Movimientos
+          </button>
+          <button onclick="cambiarPestana('bandeja')" id="tab-btn-bandeja" class="btn-tab px-3.5 py-2 rounded-xl text-slate-600 hover:text-indigo-600 transition flex items-center gap-2 relative">
+            <i class="fa-solid fa-inbox text-indigo-600"></i> Pedidos Recibidos
+            <span id="badge-pedidos-pendientes" class="hidden px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">0</span>
+          </button>
+
+          <button onclick="cambiarPestana('contactos')" id="tab-btn-contactos" class="btn-tab px-3.5 py-2 rounded-xl text-slate-600 hover:text-blue-600 transition flex items-center gap-2">
+            <i class="fa-solid fa-address-book"></i> Contactos
+          </button>
+        </nav>
+
+        <div class="flex items-center gap-2.5">
+          <button onclick="abrirModalCierre()" class="bg-amber-500 hover:bg-amber-600 active:scale-95 text-white px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-sm flex items-center gap-2 transition">
+            <i class="fa-solid fa-file-invoice"></i> Cierre del Día
+          </button>
+          
+          <div class="hidden lg:flex items-center pl-3 border-l border-slate-200 text-xs">
+            <div class="text-right mr-2">
+              <span id="label-usuario" class="block font-bold text-slate-800 leading-none">Operador</span>
+              <span class="text-[10px] text-emerald-600 font-extrabold flex items-center gap-1 justify-end">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Online
+              </span>
+            </div>
+          </div>
+
+          <button onclick="cerrarSesion()" title="Cerrar Sesión Activa" class="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-2.5 rounded-xl transition">
+            <i class="fa-solid fa-power-off text-base"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== CONTENEDOR PRINCIPAL ==================== -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
+
+    <!-- ========================================================================= -->
+    <!-- 1. PESTAÑA: ENTRADA DE MERCANCÍA (FECHA, QUIÉN ENTREGA, QUIÉN RECIBE)     -->
+    <!-- ========================================================================= -->
+    <section id="vista-llegada" class="vista-seccion hidden space-y-4">
+      <div class="max-w-4xl mx-auto bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-5">
+        <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+          <div>
+            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-dolly text-blue-600"></i> Entrada de Mercancía a Bodega
+            </h2>
+            <p class="text-xs text-slate-500">Sin exigencia de guías: ingresa la fecha, quién entrega, quién recibe y los productos con sus cantidades.</p>
+          </div>
+          <span class="text-xs font-mono-code bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg font-bold border border-emerald-200">
+            Ingreso Directo
+          </span>
+        </div>
+
+        <!-- Campos de Cabecera Priorizados -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">
+              <i class="fa-regular fa-calendar-days text-blue-600 mr-1"></i> Fecha de Ingreso <span class="text-rose-500">*</span>
+            </label>
+            <input type="datetime-local" id="entrada-fecha" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">
+              <i class="fa-solid fa-truck text-blue-600 mr-1"></i> ¿Quién Entrega? (Transportador / Persona) <span class="text-rose-500">*</span>
+            </label>
+            <input type="text" id="entrada-entrega" placeholder="Ej: Conductor Pedro / Patrón Barco Don Rafa" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">
+              <i class="fa-solid fa-user-check text-blue-600 mr-1"></i> ¿Quién Recibe en Bodega? <span class="text-rose-500">*</span>
+            </label>
+            <input type="text" id="entrada-recibe" placeholder="Nombre del receptor en bodega" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+          </div>
+        </div>
+
+        <div class="text-xs">
+          <label class="block font-bold text-slate-500 uppercase mb-1">Embarcación / Detalle Adicional (Opcional)</label>
+          <input type="text" id="entrada-detalle-opcional" placeholder="Ej: Lancha Rápida / Bongo / Llegada Mañana (opcional)" class="w-full p-2 rounded-xl border border-slate-200 font-medium text-slate-700 focus:ring-1 focus:ring-blue-600 focus:outline-none">
+        </div>
+
+        <!-- Canasta de Productos a Ingresar -->
+        <div class="border-t border-slate-100 pt-4 space-y-3">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xs font-black text-slate-800 uppercase tracking-wider">Productos y Cantidades a Ingresar</h3>
+            <button onclick="agregarFilaEntrada()" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+              <i class="fa-solid fa-plus"></i> Añadir Otro Artículo
+            </button>
+          </div>
+
+          <div id="contenedor-filas-entrada" class="space-y-2.5 max-h-[350px] overflow-y-auto pr-1"></div>
+        </div>
+
+        <div class="border-t border-slate-100 pt-4 flex justify-end">
+          <button onclick="procesarEntradaDirecta()" class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/25 flex items-center gap-2 transition active:scale-95">
+            <i class="fa-solid fa-check"></i> Asentar Ingreso en Inventario & Sheets
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 2. PESTAÑA: DESPACHO / ORDEN DE EGRESO (POS TÉRMICO)                     -->
+    <!-- ========================================================================= -->
+    <section id="vista-despacho" class="vista-seccion space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+          <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+            <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-clipboard-check text-blue-600"></i> Orden de Egreso
+            </h2>
+            <span class="text-[11px] font-mono-code bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold" id="label-num-orden">ORD-AUTO</span>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">
+                ¿Quién autoriza la salida? <span class="text-rose-500">*</span>
+              </label>
+              <input type="text" id="despacho-autoriza" list="lista-autorizan" placeholder="Ej: Don Miguel Ángel Forero / Administración" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+              <datalist id="lista-autorizan"></datalist>
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">
+                Persona que retira / Solicitante <span class="text-rose-500">*</span>
+              </label>
+              <input type="text" id="despacho-solicitante" list="lista-transportadores" placeholder="Nombre completo del conductor o cliente" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+              <datalist id="lista-transportadores"></datalist>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block font-bold text-slate-700 uppercase mb-1">Cédula / Teléfono</label>
+                <input type="text" id="despacho-documento" placeholder="Doc o cel" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+              </div>
+              <div>
+                <label class="block font-bold text-slate-700 uppercase mb-1">Vehículo / Placa</label>
+                <input type="text" id="despacho-vehiculo" placeholder="Motocarguero / Placa" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+              </div>
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">Destino / Uso</label>
+              <input type="text" id="despacho-destino" placeholder="Ej: Muelle Municipal / Obra / Almacén Secundario" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">Observaciones</label>
+              <textarea id="despacho-notas" rows="2" placeholder="Detalles adicionales del despacho..." class="w-full p-2.5 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="lg:col-span-8 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
+              <div>
+                <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
+                  <i class="fa-solid fa-boxes-packing text-blue-600"></i> Artículos para Entrega Física
+                </h2>
+                <p class="text-xs text-slate-500">Selecciona los productos y las cantidades exactas a despachar.</p>
+              </div>
+              <button onclick="agregarFilaDespacho()" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i> Agregar Otro Ítem
+              </button>
+            </div>
+
+            <div id="contenedor-filas-despacho" class="space-y-2.5 max-h-[380px] overflow-y-auto pr-1"></div>
+          </div>
+
+          <div class="border-t border-slate-100 pt-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="text-xs text-slate-500">
+              <span id="despacho-total-items" class="font-extrabold text-slate-800">0</span> artículos en la orden
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto">
+              <button onclick="procesarDespacho(false)" class="flex-1 sm:flex-none px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs transition">
+                Guardar sin Imprimir
+              </button>
+              <button onclick="procesarDespacho(true)" class="flex-1 sm:flex-none px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-lg shadow-blue-600/25 flex items-center justify-center gap-2 transition active:scale-95">
+                <i class="fa-solid fa-print"></i> Guardar e Imprimir POS
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 3. PESTAÑA: CATÁLOGO MAESTRO (CREAR, EDITAR, ELIMINAR SIN ENTRADAS)      -->
+    <!-- ========================================================================= -->
+    <section id="vista-catalogo" class="vista-seccion hidden space-y-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <i class="fa-solid fa-boxes-stacked text-blue-600"></i> Catálogo Maestro de Productos
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Administra artículos y unidades físicas sin exigir entradas de carga.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="abrirModalProductoNuevo()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 flex items-center gap-2 transition">
+            <i class="fa-solid fa-plus"></i> Crear Nuevo Artículo
+          </button>
+          <button onclick="exportarExcelInventario()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-2 transition">
+            <i class="fa-solid fa-file-excel"></i> Exportar Inventario Actual (.xlsx)
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div class="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-3">
+          <div class="relative w-full sm:max-w-md">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+            <input type="text" id="filtro-catalogo" onkeyup="filtrarCatalogo()" placeholder="Buscar por código SKU, producto, categoría o unidad..." class="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+          </div>
+          <span id="conteo-articulos" class="text-xs font-bold text-slate-500">Cargando catálogo...</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs" id="tabla-productos">
+            <thead class="bg-slate-50 text-slate-600 font-extrabold uppercase tracking-wider border-b border-slate-200/80">
+              <tr>
+                <th class="p-3.5">SKU / Código</th>
+                <th class="p-3.5">Descripción del Artículo</th>
+                <th class="p-3.5">Categoría</th>
+                <th class="p-3.5">Unidad</th>
+                <th class="p-3.5 text-right">Stock Disponible</th>
+                <th class="p-3.5 text-center">Estado</th>
+                <th class="p-3.5 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-catalogo" class="divide-y divide-slate-100 font-medium"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- 4. PESTAÑA: KÁRDEX / MOVIMIENTOS HISTÓRICOS                              -->
+    <!-- ========================================================================= -->
+    <section id="vista-movimientos" class="vista-seccion hidden space-y-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-blue-600"></i> Historial de Movimientos (Kárdex)
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Haz clic en cualquier movimiento para abrir la <strong>ventana flotante de detalle</strong>, reimprimir en POS o descargar en imagen.</p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <div class="flex items-center gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+            <label class="text-[10px] font-bold text-slate-500 uppercase px-1">Desde:</label>
+            <input type="date" id="filtro-fecha-desde" class="p-1 border border-slate-200 rounded-lg text-xs font-semibold">
+            <label class="text-[10px] font-bold text-slate-500 uppercase px-1">Hasta:</label>
+            <input type="date" id="filtro-fecha-hasta" class="p-1 border border-slate-200 rounded-lg text-xs font-semibold">
+            <button onclick="filtrarMovimientos()" class="px-3 py-1 bg-slate-200 hover:bg-slate-300 font-bold rounded-lg transition">Filtrar</button>
+          </div>
+
+          <button onclick="exportarExcelKardex()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-file-excel"></i> Exportar Rango (.xlsx)
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs" id="tabla-movimientos">
+            <thead class="bg-slate-50 text-slate-600 font-extrabold uppercase tracking-wider border-b border-slate-200/80">
+              <tr>
+                <th class="p-3.5">Fecha y Hora</th>
+                <th class="p-3.5">Referencia</th>
+                <th class="p-3.5 text-center">Tipo</th>
+                <th class="p-3.5">Artículo</th>
+                <th class="p-3.5">Unidad</th>
+                <th class="p-3.5 text-right">Cantidad</th>
+                <th class="p-3.5">Trazabilidad / Quién Entrega / Destino</th>
+                <th class="p-3.5">Responsable</th>
+                <th class="p-3.5 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-movimientos" class="divide-y divide-slate-100 font-medium"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- MÓDULO: BANDEJA ADMINISTRATIVA DE PEDIDOS RECIBIDOS DE EMPRESA           -->
+    <!-- ========================================================================= -->
+    <section id="vista-bandeja" class="vista-seccion hidden space-y-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div class="flex items-center gap-2">
+            <h2 class="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <i class="fa-solid fa-inbox text-indigo-600"></i> Bandeja de Pedidos Corporativos
+            </h2>
+            <span id="conteo-pedidos-totales" class="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">0 pedidos</span>
+          </div>
+          <p class="text-xs text-slate-500 mt-0.5">Recepción en tiempo real de pedidos autorizados mediante PIN por Don Miguel Ángel Forero o Julieth.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="sincronizarConGoogleSheets(true)" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2">
+            <i class="fa-solid fa-rotate text-indigo-600"></i> Actualizar en Vivo
+          </button>
+          <button onclick="exportarExcelPedidosEmpresa()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-emerald-600/20 flex items-center gap-2 transition">
+            <i class="fa-solid fa-file-excel"></i> Exportar Pedidos (.xlsx)
+          </button>
+        </div>
+      </div>
+
+      <!-- Filtros rápidos de estado -->
+      <div class="flex gap-2 text-xs font-bold">
+        <button onclick="filtrarPedidosPorEstado('TODOS')" class="filtro-pedido-btn px-3 py-1.5 rounded-xl bg-slate-900 text-white shadow-sm" id="btn-filtro-ped-todos">Todos</button>
+        <button onclick="filtrarPedidosPorEstado('Pendiente')" class="filtro-pedido-btn px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50" id="btn-filtro-ped-pendiente">Pendientes</button>
+        <button onclick="filtrarPedidosPorEstado('Despachado')" class="filtro-pedido-btn px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50" id="btn-filtro-ped-despachado">Despachados / Entregados</button>
+      </div>
+
+      <!-- Tabla de Pedidos Recibidos -->
+      <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs" id="tabla-pedidos-empresa">
+            <thead class="bg-slate-50 text-slate-600 font-extrabold uppercase tracking-wider border-b border-slate-200/80">
+              <tr>
+                <th class="p-3.5">No. Pedido</th>
+                <th class="p-3.5">Fecha y Hora</th>
+                <th class="p-3.5">Empresa / Solicitante</th>
+                <th class="p-3.5">Quién Reclama</th>
+                <th class="p-3.5">Autorizado Por</th>
+                <th class="p-3.5">Productos & Cantidades</th>
+                <th class="p-3.5 text-center">Estado</th>
+                <th class="p-3.5 text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-pedidos-empresa" class="divide-y divide-slate-100 font-medium">
+              <!-- Render dinámico -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ========================================================================= -->
+    <!-- MÓDULO: SOLICITUD DE PEDIDO CORPORATIVO (EMPRESA / SUCURSAL)               -->
+    <!-- ========================================================================= -->
+    <section id="vista-solicitud" class="vista-seccion hidden space-y-4">
+      <div class="bg-gradient-to-r from-blue-700 via-indigo-700 to-sky-700 p-6 rounded-3xl text-white shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <div class="inline-flex items-center gap-2 bg-white/20 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider mb-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Portal de Solicitudes Corporativas
+          </div>
+          <h2 class="text-xl font-black tracking-tight">Solicitud de Pedido - Bodega MAF</h2>
+          <p class="text-xs text-blue-100 mt-1 max-w-xl">Consulta las existencias en tiempo real y remite la orden para autorización directa por parte de Don Miguel Ángel Forero o Julieth.</p>
+        </div>
+        <div class="flex items-center gap-3 bg-white/10 p-3 rounded-2xl border border-white/20">
+          <div class="text-right">
+            <span class="text-[10px] text-blue-200 uppercase font-bold block">Autorización Requerida</span>
+            <span class="text-xs font-black text-white">PIN Miguel Ángel / Julieth</span>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-white text-lg">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Formulario de Solicitud -->
+        <div class="lg:col-span-5 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+          <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
+            <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+              <i class="fa-solid fa-id-card text-blue-600"></i> Datos de la Solicitud
+            </h3>
+            <span class="text-[10px] font-mono-code font-bold bg-blue-50 text-blue-700 px-2 py-0.5 rounded">En Vivo</span>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">Fecha y Hora de Solicitud <span class="text-rose-500">*</span></label>
+              <input type="datetime-local" id="sol-fecha" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">Empresa / Dependencia Solicitante <span class="text-rose-500">*</span></label>
+              <input type="text" id="sol-empresa" placeholder="Ej: Grupo Empresarial MAF / Gas Guainía / Sucursal" class="w-full p-2.5 rounded-xl border border-slate-300 font-bold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">¿Quién Reclama / Conductor Responsable? <span class="text-rose-500">*</span></label>
+              <input type="text" id="sol-reclama" placeholder="Nombre completo de quien retira en bodega" class="w-full p-2.5 rounded-xl border border-slate-300 font-bold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">Destino / Uso de la Carga</label>
+              <input type="text" id="sol-destino" placeholder="Ej: Obra Muelle / Despacho Fluvial / Comercialización" class="w-full p-2.5 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            </div>
+
+            <div>
+              <label class="block font-bold text-slate-700 uppercase mb-1">Observaciones Adicionales</label>
+              <textarea id="sol-notas" rows="2" placeholder="Indicaciones para el bodeguero..." class="w-full p-2.5 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Canasta y Selección de Productos con Stock Visible -->
+        <div class="lg:col-span-7 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
+              <div>
+                <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <i class="fa-solid fa-boxes-packing text-blue-600"></i> Productos y Cantidades Requeridas
+                </h3>
+                <p class="text-xs text-slate-500">Solo se pueden solicitar cantidades dentro de la existencia disponible.</p>
+              </div>
+              <button onclick="agregarFilaSolicitud()" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                <i class="fa-solid fa-plus"></i> Añadir Ítem
+              </button>
+            </div>
+
+            <div id="contenedor-filas-solicitud" class="space-y-2.5 max-h-[340px] overflow-y-auto pr-1"></div>
+          </div>
+
+          <!-- Botón de Envío Protegido por PIN -->
+          <div class="border-t border-slate-100 pt-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+            <div class="text-xs text-slate-500">
+              <span id="sol-total-items-badge" class="font-extrabold text-slate-800">0</span> bultos/unidades en el pedido
+            </div>
+            <button onclick="abrirModalPinAutorizacion()" class="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition active:scale-95">
+              <i class="fa-solid fa-lock"></i> Enviar Pedido y Solicitar Autorización (PIN)
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ========================================================================= -->
+    <!-- 5. PESTAÑA: DIRECTORIO DE CONTACTOS                                      -->
+    <!-- ========================================================================= -->
+    <section id="vista-contactos" class="vista-seccion hidden space-y-4">
+      <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex justify-between items-center">
+        <div>
+          <h2 class="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <i class="fa-solid fa-address-book text-blue-600"></i> Directorio de Personal & Clientes
+          </h2>
+          <p class="text-xs text-slate-500 mt-0.5">Personas que autorizan notas de egreso y solicitantes/transportadores habituales.</p>
+        </div>
+        <button onclick="abrirModalContacto()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 flex items-center gap-2 transition">
+          <i class="fa-solid fa-user-plus"></i> Nuevo Contacto
+        </button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="contenedor-contactos"></div>
+    </section>
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: PIN DE AUTORIZACIÓN DIRECTIVA (JULIETH / MIGUEL ÁNGEL FORERO)       -->
+  <!-- ========================================================================= -->
+  <div id="modal-pin-autorizacion" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-slate-200 text-center relative overflow-hidden">
+      <div class="w-14 h-14 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl mx-auto flex items-center justify-center text-2xl font-black mb-3 shadow-inner">
+        <i class="fa-solid fa-key"></i>
+      </div>
+      <h3 class="text-base font-black text-slate-900">Autorización Directiva</h3>
+      <p class="text-xs text-slate-500 mt-1 mb-4">Ingresa la clave de autorización asignada para validar el despacho corporativo:</p>
+
+      <div class="space-y-4">
+        <div>
+          <input type="password" id="input-pin-autorizacion" maxlength="8" placeholder="Ingresa PIN (4 dígitos)" class="w-full text-center text-2xl tracking-[0.3em] font-mono-code font-black py-3 rounded-2xl border-2 border-slate-300 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100 focus:outline-none">
+          <p class="text-[10px] text-slate-400 mt-2">Claves configuradas desde Sheets: Don Miguel Ángel o Julieth</p>
+        </div>
+
+        <div id="pin-error-mensaje" class="hidden text-xs font-bold text-rose-600 bg-rose-50 p-2 rounded-xl border border-rose-200">
+          Clave incorrecta. Intente nuevamente.
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button onclick="cerrarModalPinAutorizacion()" class="py-2.5 rounded-xl border border-slate-300 text-slate-600 font-bold text-xs hover:bg-slate-50 transition">
+            Cancelar
+          </button>
+          <button onclick="validarPinYProcesarPedido()" class="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/25 flex items-center justify-center gap-1.5 transition">
+            <i class="fa-solid fa-check"></i> Autorizar Pedido
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ========================================================================= -->
+  <!-- VENTANA FLOTANTE (MODAL): DETALLE DE MOVIMIENTO DE KÁRDEX                 -->
+  <!-- ========================================================================= -->
+  <div id="modal-detalle-kardex" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+      
+      <!-- CONTENEDOR RENDERIZABLE A IMAGEN PNG / COMPROBANTE -->
+      <div id="recibo-movimiento-target" class="bg-white p-5 rounded-2xl border border-slate-200 text-slate-900 shadow-sm">
+        <div class="text-center border-b border-slate-200 pb-3 mb-3">
+          <div class="inline-block bg-blue-600 text-white font-black text-xs px-3 py-1 rounded-lg mb-1 shadow-sm">BODEGA MAF</div>
+          <h3 class="text-sm font-black uppercase tracking-tight text-slate-900" id="det-tipo-titulo">Comprobante de Movimiento</h3>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Inírida, Guainía - Custodia Logística</p>
+          <p class="text-[11px] font-mono-code font-bold text-blue-700 mt-1" id="det-ref-display"></p>
+        </div>
+
+        <div class="space-y-2 text-xs">
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Fecha / Hora:</span>
+            <span class="font-semibold text-slate-800" id="det-fecha"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Tipo Operación:</span>
+            <span class="font-black" id="det-tipo-badge"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Artículo:</span>
+            <span class="font-extrabold text-slate-900 text-right" id="det-articulo"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Cantidad / Unidad:</span>
+            <span class="font-mono-code font-black text-sm text-blue-800" id="det-cantidad"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Trazabilidad / Quién Entrega o Retira:</span>
+            <span class="font-semibold text-slate-800 text-right max-w-[200px]" id="det-trazabilidad"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Responsable / Autorizado:</span>
+            <span class="font-semibold text-slate-800" id="det-responsable"></span>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-dashed border-slate-300 text-[10px] text-slate-400 flex justify-between items-center font-mono-code">
+          <span>SISTEMA LOGÍSTICO MAF</span>
+          <span>COPIA DIGITAL</span>
+        </div>
+      </div>
+
+      <!-- BOTONES DE ACCIÓN: REIMPRIMIR EN POS O DESCARGAR EN IMAGEN -->
+      <div class="mt-5 space-y-2">
+        <button onclick="reimprimirDetalleEnPOS()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 transition">
+          <i class="fa-solid fa-print"></i> Reimprimir Comprobante en Impresora POS
+        </button>
+        <button onclick="descargarDetalleEnImagenPNG()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-emerald-600/25 flex items-center justify-center gap-2 transition">
+          <i class="fa-solid fa-image"></i> Descargar Comprobante en Imagen (WhatsApp)
+        </button>
+        <button onclick="cerrarModalDetalleKardex()" class="w-full py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition">
+          Cerrar Ventana
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: GESTIÓN DE ARTÍCULO -->
+  <div id="modal-producto" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+        <h3 class="text-base font-black text-slate-900" id="modal-producto-titulo">Gestión de Artículo</h3>
+        <button onclick="cerrarModalProducto()" class="text-slate-400 hover:text-slate-600 text-sm">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3.5 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Código SKU <span class="text-rose-500">*</span></label>
+          <input type="text" id="form-prod-sku" placeholder="Ej: SKU-MAF-010" class="w-full p-2.5 rounded-xl border border-slate-300 font-mono-code font-bold uppercase focus:ring-2 focus:ring-blue-600 focus:outline-none">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Descripción del Producto <span class="text-rose-500">*</span></label>
+          <input type="text" id="form-prod-nombre" placeholder="Ej: Purina Concentrado Engorde 40kg" class="w-full p-2.5 rounded-xl border border-slate-300 font-bold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Categoría</label>
+            <select id="form-prod-categoria" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+              <option value="Alimento Animal">Alimento Animal</option>
+              <option value="Construcción">Construcción</option>
+              <option value="Insumos">Insumos y Empaques</option>
+              <option value="Bebidas">Bebidas</option>
+              <option value="Víveres">Víveres y Abarrotes</option>
+              <option value="Ferretería">Ferretería / Repuestos</option>
+              <option value="General">General</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Unidad de Medida</label>
+            <select id="form-prod-unidad" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+              <option value="Bulto">Bulto</option>
+              <option value="Paca">Paca</option>
+              <option value="Caja">Caja</option>
+              <option value="Cartón">Cartón</option>
+              <option value="Atado">Atado</option>
+              <option value="Unidad">Unidad</option>
+              <option value="Canastilla">Canastilla</option>
+              <option value="Saco">Saco</option>
+            </select>
+          </div>
+        </div>
+        <div id="contenedor-stock-inicial">
+          <label class="block font-bold text-slate-700 uppercase mb-1">Stock Inicial de Creación (Opcional, puede ser 0)</label>
+          <input type="number" id="form-prod-stock-inicial" value="0" min="0" class="w-full p-2.5 rounded-xl border border-slate-300 font-mono-code font-bold">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Umbral de Stock Mínimo (Alerta)</label>
+          <input type="number" id="form-prod-stock-minimo" value="10" min="1" class="w-full p-2.5 rounded-xl border border-slate-300 font-mono-code font-bold">
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end gap-2">
+        <button onclick="cerrarModalProducto()" class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-600 text-xs font-bold hover:bg-slate-50 transition">Cancelar</button>
+        <button onclick="guardarProductoCatalogo()" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/25 transition">Guardar en Catálogo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVO CONTACTO -->
+  <div id="modal-contacto" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+      <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+        <h3 class="text-base font-black text-slate-900">Nuevo Contacto</h3>
+        <button onclick="cerrarModalContacto()" class="text-slate-400 hover:text-slate-600 text-sm">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Nombre Completo <span class="text-rose-500">*</span></label>
+          <input type="text" id="contacto-nombre" placeholder="Nombre y Apellidos" class="w-full p-2.5 rounded-xl border border-slate-300 font-bold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Rol / Cargo <span class="text-rose-500">*</span></label>
+          <select id="contacto-rol" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            <option value="Autoriza Salida">Autoriza Salida (Directivo / Administrativo)</option>
+            <option value="Transportador Fluvial">Transportador Fluvial (Capitán / Patrón)</option>
+            <option value="Transportador Terrestre">Transportador Terrestre (Conductor / Motocarguero)</option>
+            <option value="Cliente / Solicitante">Cliente / Solicitante</option>
+            <option value="Bodeguero">Bodeguero / Operador</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Teléfono</label>
+            <input type="text" id="contacto-tel" placeholder="Celular" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 uppercase mb-1">Cédula</label>
+            <input type="text" id="contacto-doc" placeholder="Identificación" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold">
+          </div>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Notas / Empresa</label>
+          <input type="text" id="contacto-notas" placeholder="Ej: Barco Don Rafa / Obra Guainía" class="w-full p-2.5 rounded-xl border border-slate-300 font-medium">
+        </div>
+      </div>
+
+      <div class="mt-6 flex justify-end gap-2">
+        <button onclick="cerrarModalContacto()" class="px-4 py-2 rounded-xl border text-slate-600 text-xs font-bold">Cancelar</button>
+        <button onclick="guardarContacto()" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CIERRE DIARIO -->
+  <div id="modal-cierre" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-xl w-full p-5 sm:p-6 border border-slate-200 my-auto max-h-[92vh] flex flex-col">
+      
+      <!-- CONTENEDOR RENDERIZABLE A IMAGEN PNG / WHATSAPP -->
+      <div id="cuadro-cierre-imagen" class="bg-white p-5 rounded-2xl border border-slate-200 text-slate-900 shadow-sm overflow-y-auto">
+        <div class="text-center border-b border-slate-200 pb-3 mb-3">
+          <div class="inline-block bg-blue-600 text-white font-black text-sm px-3 py-1 rounded-lg mb-1 shadow-sm">BODEGA MAF</div>
+          <h3 class="text-base font-black uppercase tracking-tight text-slate-900">Cuadre & Cierre Diario</h3>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Inírida, Guainía - Almacenamiento Fluvial</p>
+          <p class="text-[11px] font-mono-code font-bold text-blue-700 mt-1" id="cierre-fecha-texto"></p>
+        </div>
+
+        <!-- Resumen de Totales y Desglose de Movimientos -->
+        <div class="space-y-3 text-xs" id="cierre-resumen-contenido"></div>
+
+        <div class="mt-4 pt-3 border-t border-dashed border-slate-300 text-[10px] text-slate-500 flex justify-between items-center">
+          <span>Generado para: <strong>Don Miguel Ángel Forero</strong></span>
+          <span class="font-mono-code">MAF-LOG</span>
+        </div>
+      </div>
+
+      <!-- BOTONES DE ACCIÓN DEL CIERRE -->
+      <div class="mt-4 space-y-2 pt-2 border-t border-slate-100">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button onclick="guardarCierreEnSheets()" id="btn-guardar-cierre-db" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-blue-600/25 flex items-center justify-center gap-1.5 transition">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Guardar en Base de Datos
+          </button>
+          <button onclick="exportarExcelCierreDiario()" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-emerald-700/25 flex items-center justify-center gap-1.5 transition">
+            <i class="fa-solid fa-file-excel"></i> Exportar a Excel (.xlsx)
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button onclick="descargarImagenCierrePNG()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-emerald-600/25 flex items-center justify-center gap-1.5 transition">
+            <i class="fa-solid fa-image"></i> Descargar Imagen WhatsApp
+          </button>
+          <button onclick="imprimirCierreEnPOS()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-indigo-600/25 flex items-center justify-center gap-1.5 transition">
+            <i class="fa-solid fa-print"></i> Imprimir en POS Térmica
+          </button>
+        </div>
+
+        <button onclick="cerrarModalCierre()" class="w-full py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition">
+          Volver
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ÁREA DE IMPRESIÓN POS (58mm / 80mm) -->
+  <div id="area-impresion-pos"></div>
+
+  <!-- SCRIPT LÓGICO -->
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsIonFrjw49piLImRkuttrulcVoJUVEMyAbZsXvjNQrSv2DV_TgJvEybyaGT_l8cMd5w/exec';
+
+    const estado = {
+      usuario: localStorage.getItem('maf_usuario') || null,
+      inventario: JSON.parse(localStorage.getItem('maf_inventario') || '[]'),
+      movimientos: JSON.parse(localStorage.getItem('maf_movimientos') || '[]'),
+      contactos: JSON.parse(localStorage.getItem('maf_contactos') || '[]'),
+      pedidos: JSON.parse(localStorage.getItem('maf_pedidos') || '[]'),
+      autorizadores: JSON.parse(localStorage.getItem('maf_autorizadores') || '[{"Nombre_Directivo":"Miguel Ángel Forero","PIN_Clave":"7412","Rol_Cargo":"Propietario / Gerencia"},{"Nombre_Directivo":"Julieth","PIN_Clave":"9632","Rol_Cargo":"Directiva / Administración"}]'),
+      movimientoSeleccionado: null,
+      filtroPedidoActual: 'TODOS'
+    };
+
+    if (estado.inventario.length === 0) {
+      estado.inventario = [
+        { SKU: 'SKU-MAF-001', 'Descripción del Producto': 'Purina Concentrado Engorde 40kg', 'Categoría': 'Alimento Animal', 'Unidad': 'Bulto', 'Stock Actual': 120, 'Stock Mínimo': 25, 'Estado Disponibilidad': 'Disponible' },
+        { SKU: 'SKU-MAF-002', 'Descripción del Producto': 'Cemento Gris Estructural 50kg', 'Categoría': 'Construcción', 'Unidad': 'Bulto', 'Stock Actual': 205, 'Stock Mínimo': 40, 'Estado Disponibilidad': 'Disponible' },
+        { SKU: 'SKU-MAF-003', 'Descripción del Producto': 'Pack Cartón para Huevo (100u)', 'Categoría': 'Insumos', 'Unidad': 'Paca', 'Stock Actual': 85, 'Stock Mínimo': 20, 'Estado Disponibilidad': 'Disponible' },
+        { SKU: 'SKU-MAF-004', 'Descripción del Producto': 'Coca-Cola 350ml Vidrio Retornable', 'Categoría': 'Bebidas', 'Unidad': 'Caja', 'Stock Actual': 310, 'Stock Mínimo': 50, 'Estado Disponibilidad': 'Disponible' }
+      ];
+      guardarInventarioLocal();
+    }
+
+    if (estado.contactos.length === 0) {
+      estado.contactos = [
+        { id: '1', nombre: 'Don Miguel Ángel Forero', rol: 'Autoriza Salida', tel: '3100000000', doc: 'N/A', notas: 'Propietario / Director' },
+        { id: '2', nombre: 'Administración Bodega MAF', rol: 'Autoriza Salida', tel: '3120000000', doc: 'N/A', notas: 'Oficina Central' },
+        { id: '3', nombre: 'Diego (Operaciones)', rol: 'Autoriza Salida', tel: '3110000000', doc: 'N/A', notas: 'Coordinador Operativo' }
+      ];
+      guardarContactosLocal();
+    }
+
+    // Poner fecha de hoy en el formulario de entrada
+    function setFechaActualInput() {
+      const input = document.getElementById('entrada-fecha');
+      if (input) {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        input.value = now.toISOString().slice(0, 16);
+      }
+    }
+
+    // Función auxiliar para formatear fechas limpias (evita el formato crudo ISO)
+    function formatearFechaLegible(fechaRaw) {
+      if (!fechaRaw) return '';
+      try {
+        const d = new Date(fechaRaw);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+      } catch (e) {}
+      return String(fechaRaw).replace('T', ' ').replace('.000Z', '');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      if (estado.usuario) {
+        document.getElementById('modal-login').classList.add('hidden');
+        document.getElementById('label-usuario').innerText = estado.usuario;
+      }
+      setFechaActualInput();
+      setFechaActualSolicitud();
+      renderizarCatalogo();
+      renderizarBandejaPedidos();
+      agregarFilaSolicitud();
+      renderizarMovimientos();
+      renderizarContactos();
+      agregarFilaDespacho();
+      agregarFilaEntrada();
+      actualizarDataListContactos();
+      sincronizarConGoogleSheets();
+      setInterval(() => {
+        sincronizarConGoogleSheets();
+      }, 25000);
     });
-  } catch (err) {
-    return jsonResponse({ success: false, error: err.toString() });
-  }
-}
 
-function doPost(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const lock = LockService.getScriptLock();
-  
-  if (!lock.tryLock(10000)) {
-    return jsonResponse({ success: false, error: 'Servidor ocupado. Intenta de nuevo.' });
-  }
-
-  try {
-    const data = JSON.parse(e.postData.contents);
-    const action = data.action;
-
-    // --- 1. GUARDAR PEDIDO CORPORATIVO DESDE 'solicitud.html' ---
-    if (action === 'guardarPedidoEmpresa') {
-      const sheetPedidos = ss.getSheetByName(SHEET_PEDIDOS);
-      if (sheetPedidos) {
-        sheetPedidos.appendRow([
-          data.idPedido,
-          data.fechaHora,
-          data.empresa,
-          data.reclama,
-          data.autoriza,
-          data.productos,
-          data.destino || '',
-          data.estado || 'Pendiente',
-          data.idPedido
-        ]);
-        SpreadsheetApp.flush();
-        return jsonResponse({ success: true, message: 'Pedido registrado con éxito' });
+    function ejecutarLogin(e) {
+      if (e) e.preventDefault();
+      const user = document.getElementById('login-usuario').value.trim();
+      if (user) {
+        estado.usuario = user;
+        localStorage.setItem('maf_usuario', user);
+        document.getElementById('label-usuario').innerText = user;
+        document.getElementById('modal-login').classList.add('hidden');
       }
-      return jsonResponse({ success: false, error: 'Hoja PEDIDOS_EMPRESA no encontrada' });
     }
 
-    // --- 2. ACTUALIZAR ESTADO AL DESPACHAR EN BODEGA ('index.html') ---
-    if (action === 'actualizarEstadoPedido') {
-      const sheetPedidos = ss.getSheetByName(SHEET_PEDIDOS);
-      const values = sheetPedidos.getDataRange().getValues();
-      let rowIndex = -1;
-
-      for (let i = 1; i < values.length; i++) {
-        if (String(values[i][0]).trim() === String(data.idPedido).trim()) {
-          rowIndex = i + 1;
-          break;
-        }
+    function cerrarSesion() {
+      if (confirm('¿Desea cerrar el turno actual y salir del sistema?')) {
+        localStorage.removeItem('maf_usuario');
+        location.reload();
       }
-
-      if (rowIndex > 0) {
-        sheetPedidos.getRange(rowIndex, 8).setValue(data.nuevoEstado || 'Despachado');
-        SpreadsheetApp.flush();
-        return jsonResponse({ success: true, message: 'Estado actualizado' });
-      }
-      return jsonResponse({ success: false, error: 'Pedido no encontrado' });
     }
 
-    // --- 3. GUARDAR CIERRE DIARIO ---
-    if (action === 'guardarCierre') {
-      const sheet = ss.getSheetByName(SHEET_CIERRES);
-      if (sheet) {
-        sheet.appendRow([
-          data.idCierre || ('CIE-' + Utilities.formatDate(new Date(), 'GMT-5', 'yyyyMMdd-HHmm')),
-          data.fechaHora || Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd HH:mm:ss'),
-          data.fechaJornada || Utilities.formatDate(new Date(), 'GMT-5', 'yyyy-MM-dd'),
-          data.operador || 'Operador',
-          Number(data.totalIngresos || 0),
-          Number(data.totalSalidas || 0),
-          Number(data.totalOrdenes || 0),
-          Number(data.lineasActivas || 0),
-          data.detalleMovimientos || '',
-          data.estado || 'Cuadrado'
-        ]);
-        SpreadsheetApp.flush();
-        return jsonResponse({ success: true, message: 'Cierre diario guardado' });
-      }
-      return jsonResponse({ success: false, error: 'Hoja CIERRES_DIARIOS no encontrada' });
+    
+    // Función para refrescar dinámicamente las listas desplegables de Entrada y Despacho
+    function actualizarSelectsProductos() {
+      const opciones = estado.inventario.map(p => {
+        const sku = p.SKU || p.sku;
+        const nombre = p['Descripción del Producto'] || p.nombre || p.descripcion || '';
+        const unidad = p.Unidad || p.unidad || 'Unidad';
+        const stock = p['Stock Actual'] !== undefined ? p['Stock Actual'] : (p.stock || 0);
+        return { sku, nombre, unidad, stock };
+      });
+
+      // Actualizar selects en Entrada
+      document.querySelectorAll('.item-entrada-sku').forEach(select => {
+        const valorActual = select.value;
+        select.innerHTML = opciones.map(o => `<option value="${o.sku}">${o.nombre} [${o.unidad}]</option>`).join('');
+        if (valorActual && opciones.some(o => o.sku === valorActual)) {
+          select.value = valorActual;
+        }
+      });
+
+      // Actualizar selects en Despacho
+      document.querySelectorAll('.item-desp-sku').forEach(select => {
+        const valorActual = select.value;
+        select.innerHTML = opciones.map(o => `<option value="${o.sku}">${o.nombre} [${o.unidad}] - Disp: ${o.stock}</option>`).join('');
+        if (valorActual && opciones.some(o => o.sku === valorActual)) {
+          select.value = valorActual;
+        }
+      });
+
+      document.querySelectorAll('.item-sol-sku').forEach(select => {
+        const valorActual = select.value;
+        select.innerHTML = opciones.map(o => `<option value="${o.sku}" data-stock="${o.stock}">${o.nombre} [${o.unidad}] - DISPONIBLE: ${o.stock}</option>`).join('');
+        if (valorActual && opciones.some(o => o.sku === valorActual)) {
+          select.value = valorActual;
+        }
+      });
     }
 
-    // --- 4. GUARDAR / EDITAR PRODUCTO EN EL CATÁLOGO ---
-    if (action === 'guardarProducto') {
-      const sheet = ss.getSheetByName(SHEET_INVENTARIO);
-      const values = sheet.getDataRange().getValues();
-      let rowIndex = -1;
+    function cambiarPestana(id) {
+      document.querySelectorAll('.vista-seccion').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('.btn-tab').forEach(b => {
+        b.classList.remove('bg-white', 'text-blue-600', 'shadow-sm');
+        b.classList.add('text-slate-600');
+      });
 
-      for (let i = 1; i < values.length; i++) {
-        if (String(values[i][0]).trim() === String(data.sku).trim()) {
-          rowIndex = i + 1;
-          break;
+      const vista = document.getElementById('vista-' + id);
+      const boton = document.getElementById('tab-btn-' + id);
+      if (vista) vista.classList.remove('hidden');
+      actualizarSelectsProductos();
+      actualizarDataListContactos();
+      if (boton) {
+        boton.classList.add('bg-white', 'text-blue-600', 'shadow-sm');
+        boton.classList.remove('text-slate-600');
+      }
+    }
+
+    async function sincronizarConGoogleSheets() {
+      try {
+        const respuesta = await fetch(SCRIPT_URL);
+        const datos = await respuesta.json();
+        
+        if (datos && datos.success) {
+          if (Array.isArray(datos.inventario) && datos.inventario.length > 0) {
+            estado.inventario = datos.inventario;
+            guardarInventarioLocal();
+            renderizarCatalogo();
+      renderizarBandejaPedidos();
+            actualizarSelectsProductos();
+      actualizarDataListContactos();
+          }
+          if (Array.isArray(datos.movimientos) && datos.movimientos.length > 0) {
+            estado.movimientos = datos.movimientos;
+            guardarMovimientosLocal();
+            renderizarMovimientos();
+          }
+          if (Array.isArray(datos.contactos) && datos.contactos.length > 0) {
+            estado.contactos = datos.contactos;
+            guardarContactosLocal();
+            renderizarContactos();
+            actualizarDataListContactos();
+          }
+          if (Array.isArray(datos.autorizadores) && datos.autorizadores.length > 0) {
+            estado.autorizadores = datos.autorizadores;
+            localStorage.setItem('maf_autorizadores', JSON.stringify(estado.autorizadores));
+          }
+          if (Array.isArray(datos.pedidos)) {
+            estado.pedidos = datos.pedidos;
+            localStorage.setItem('maf_pedidos', JSON.stringify(estado.pedidos));
+            renderizarBandejaPedidos();
+          }
         }
+      } catch (err) {
+        console.warn('Operando con almacenamiento local. Sincronización en espera:', err);
+      }
+    }
+
+    async function enviarComandoGoogleSheets(payload) {
+      try {
+        await fetch(SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+        console.error('Error al sincronizar con Sheets:', e);
+      }
+    }
+
+    // =========================================================================
+    // 1. MÓDULO: ENTRADA DIRECTA (FECHA, QUIÉN ENTREGA, QUIÉN RECIBE)
+    // =========================================================================
+    function agregarFilaEntrada() {
+      const contenedor = document.getElementById('contenedor-filas-entrada');
+      const div = document.createElement('div');
+      div.className = 'fila-item-entrada flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80';
+
+      const opciones = estado.inventario.map(p => {
+        const sku = p.SKU || p.sku;
+        const nombre = p['Descripción del Producto'] || p.nombre;
+        const unidad = p.Unidad || p.unidad;
+        return `<option value="${sku}">${nombre} [${unidad}]</option>`;
+      }).join('');
+
+      div.innerHTML = `
+        <select class="item-entrada-sku flex-1 p-2 rounded-lg border border-slate-300 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none">
+          ${opciones}
+        </select>
+        <input type="number" min="1" value="50" class="item-entrada-cant w-28 p-2 rounded-lg border border-slate-300 text-xs font-mono-code font-bold text-center focus:ring-1 focus:ring-blue-600 focus:outline-none">
+        <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-rose-600 p-2 transition font-bold">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      `;
+      contenedor.appendChild(div);
+    }
+
+    async function procesarEntradaDirecta() {
+      const fechaVal = document.getElementById('entrada-fecha').value;
+      const entrega = document.getElementById('entrada-entrega').value.trim();
+      const recibe = document.getElementById('entrada-recibe').value.trim();
+      const detalle = document.getElementById('entrada-detalle-opcional').value.trim();
+
+      if (!fechaVal) {
+        alert('Debe ingresar la fecha de recepción.');
+        return;
+      }
+      if (!entrega || !recibe) {
+        alert('Debe indicar quién entrega la carga y quién la recibe en bodega.');
+        return;
       }
 
-      if (rowIndex > 0) {
-        sheet.getRange(rowIndex, 2).setValue(data.nombre);
-        sheet.getRange(rowIndex, 3).setValue(data.categoria);
-        sheet.getRange(rowIndex, 4).setValue(data.unidad);
-        if (data.stockMinimo !== undefined) {
-          sheet.getRange(rowIndex, 9).setValue(Number(data.stockMinimo));
+      const filas = document.querySelectorAll('.fila-item-entrada');
+      const items = [];
+
+      filas.forEach(f => {
+        const sku = f.querySelector('.item-entrada-sku').value;
+        const cant = Number(f.querySelector('.item-entrada-cant').value || 0);
+        const prod = estado.inventario.find(p => (p.SKU || p.sku) === sku);
+        if (prod && cant > 0) {
+          items.push({
+            sku,
+            nombre: prod['Descripción del Producto'] || prod.nombre,
+            unidad: prod.Unidad || prod.unidad,
+            cantidad: cant
+          });
         }
-        SpreadsheetApp.flush();
-        return jsonResponse({ success: true, message: 'Producto modificado' });
+      });
+
+      if (items.length === 0) {
+        alert('Agregue al menos un producto recibido con cantidad válida.');
+        return;
+      }
+
+      const fechaObj = new Date(fechaVal);
+      const fechaFormateada = formatearFechaLegible(fechaObj);
+      const refGenerada = 'ING-' + Date.now().toString().slice(-6);
+
+      items.forEach(it => {
+        const p = estado.inventario.find(prod => (prod.SKU || prod.sku) === it.sku);
+        if (p) {
+          p['Stock Actual'] = Number(p['Stock Actual'] || 0) + it.cantidad;
+        }
+
+        estado.movimientos.unshift({
+          Fecha: fechaFormateada,
+          Referencia: refGenerada,
+          Tipo: 'ENTRADA',
+          Producto: it.nombre,
+          Unidad: it.unidad,
+          Cantidad: it.cantidad,
+          Trazabilidad: `Entrega: ${entrega} ${detalle ? '(' + detalle + ')' : ''}`,
+          Responsable: recibe
+        });
+      });
+
+      guardarInventarioLocal();
+      guardarMovimientosLocal();
+      renderizarCatalogo();
+      renderizarBandejaPedidos();
+      renderizarMovimientos();
+
+      // Enviar a Google Sheets
+      enviarComandoGoogleSheets({
+        action: 'registrarEntrada',
+        lancha: entrega,
+        remision: refGenerada,
+        recibidoPor: recibe,
+        items: items
+      });
+
+      alert(`¡Entrada registrada con éxito! (Ref: ${refGenerada})`);
+      document.getElementById('entrada-entrega').value = '';
+      document.getElementById('entrada-detalle-opcional').value = '';
+      document.getElementById('contenedor-filas-entrada').innerHTML = '';
+      setFechaActualInput();
+      agregarFilaEntrada();
+    }
+
+    // =========================================================================
+    // 2. MÓDULO: KÁRDEX & VENTANA FLOTANTE DE DETALLE
+    // =========================================================================
+    function renderizarMovimientos(lista = null) {
+      const tbody = document.getElementById('tbody-movimientos');
+      tbody.innerHTML = '';
+      const datos = lista || estado.movimientos;
+
+      datos.forEach((m, idx) => {
+        const tipo = (m['Tipo Movimiento'] || m.Tipo || 'MOV').toUpperCase();
+        const colorTipo = tipo === 'ENTRADA' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800';
+        const fechaLimpia = formatearFechaLegible(m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho']);
+        const ref = m['Documento Referencia'] || m.Referencia || m['No. Orden Despacho'] || m['No. Remisión / Manifiesto'] || 'S/R';
+        const producto = m.Producto || m['Producto / Descripción'] || '';
+        const unidad = m.Unidad || '';
+        const cantidad = m.Cantidad || 0;
+        const trazabilidad = m.Trazabilidad || m['Destinatario / Obra'] || m['Embarcación / Transporte Fluvial'] || '';
+        const responsable = m.Responsable || m['Autorizado Por'] || m['Responsable Recepción'] || '';
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-blue-50/50 cursor-pointer transition border-b border-slate-100';
+        tr.innerHTML = `
+          <td class="p-3.5 font-mono-code text-slate-600">${fechaLimpia}</td>
+          <td class="p-3.5 font-mono-code font-bold text-slate-800">${ref}</td>
+          <td class="p-3.5 text-center">
+            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${colorTipo}">${tipo}</span>
+          </td>
+          <td class="p-3.5 font-bold text-slate-900">${producto}</td>
+          <td class="p-3.5 text-slate-600">${unidad}</td>
+          <td class="p-3.5 text-right font-black font-mono-code text-slate-900 text-sm">${cantidad}</td>
+          <td class="p-3.5 text-slate-600 truncate max-w-[200px]" title="${trazabilidad}">${trazabilidad}</td>
+          <td class="p-3.5 text-slate-700 font-semibold">${responsable}</td>
+          <td class="p-3.5 text-center">
+            <button onclick="event.stopPropagation(); abrirModalDetalleKardex(${idx});" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 mx-auto">
+              <i class="fa-solid fa-eye"></i> Detalle
+            </button>
+          </td>
+        `;
+        // Abrir también al hacer clic en toda la fila
+        tr.addEventListener('click', () => abrirModalDetalleKardex(idx));
+        tbody.appendChild(tr);
+      });
+    }
+
+    function abrirModalDetalleKardex(idx) {
+      const m = estado.movimientos[idx];
+      if (!m) return;
+      estado.movimientoSeleccionado = m;
+
+      const tipo = (m['Tipo Movimiento'] || m.Tipo || 'MOV').toUpperCase();
+      const fechaLimpia = formatearFechaLegible(m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho']);
+      const ref = m['Documento Referencia'] || m.Referencia || m['No. Orden Despacho'] || m['No. Remisión / Manifiesto'] || 'S/R';
+      const producto = m.Producto || m['Producto / Descripción'] || '';
+      const unidad = m.Unidad || 'Unidad';
+      const cantidad = m.Cantidad || 0;
+      const trazabilidad = m.Trazabilidad || m['Destinatario / Obra'] || m['Embarcación / Transporte Fluvial'] || 'Bodega MAF';
+      const responsable = m.Responsable || m['Autorizado Por'] || m['Responsable Recepción'] || 'Operador MAF';
+
+      document.getElementById('det-tipo-titulo').innerText = tipo === 'ENTRADA' ? 'Comprobante de Entrada' : 'Comprobante de Salida / Despacho';
+      document.getElementById('det-ref-display').innerText = 'REF: ' + ref;
+      document.getElementById('det-fecha').innerText = fechaLimpia;
+      
+      const badge = document.getElementById('det-tipo-badge');
+      badge.innerText = tipo;
+      badge.className = tipo === 'ENTRADA' ? 'text-emerald-700 font-black' : 'text-blue-700 font-black';
+
+      document.getElementById('det-articulo').innerText = producto;
+      document.getElementById('det-cantidad').innerText = `${cantidad} ${unidad}`;
+      document.getElementById('det-trazabilidad').innerText = trazabilidad;
+      document.getElementById('det-responsable').innerText = responsable;
+
+      document.getElementById('modal-detalle-kardex').classList.remove('hidden');
+    }
+
+    function cerrarModalDetalleKardex() {
+      document.getElementById('modal-detalle-kardex').classList.add('hidden');
+    }
+
+    function reimprimirDetalleEnPOS() {
+      const m = estado.movimientoSeleccionado;
+      if (!m) return;
+
+      const tipo = (m['Tipo Movimiento'] || m.Tipo || 'MOV').toUpperCase();
+      const fechaLimpia = formatearFechaLegible(m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho']);
+      const ref = m['Documento Referencia'] || m.Referencia || m['No. Orden Despacho'] || 'S/R';
+      const producto = m.Producto || m['Producto / Descripción'] || '';
+      const unidad = m.Unidad || 'Unidad';
+      const cantidad = m.Cantidad || 0;
+      const trazabilidad = m.Trazabilidad || m['Destinatario / Obra'] || 'Bodega MAF';
+      const responsable = m.Responsable || m['Autorizado Por'] || 'Operador MAF';
+
+      const area = document.getElementById('area-impresion-pos');
+      area.innerHTML = `
+        <div style="text-align:center; font-weight:bold; font-size:13px;">BODEGA MAF</div>
+        <div style="text-align:center; font-size:10px;">${tipo === 'ENTRADA' ? 'COMPROBANTE DE ENTRADA' : 'ORDEN DE EGRESO DE BODEGA'}</div>
+        <div style="text-align:center; font-size:9px;">Inírida, Guainía</div>
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="font-size:10px;"><strong>No. Ref:</strong> ${ref}</div>
+        <div style="font-size:10px;"><strong>Fecha:</strong> ${fechaLimpia}</div>
+        <div style="font-size:10px;"><strong>Tipo:</strong> ${tipo}</div>
+        <div style="font-size:10px;"><strong>${tipo === 'ENTRADA' ? 'Entrega:' : 'Retira:'}</strong> ${trazabilidad}</div>
+        <div style="font-size:10px;"><strong>Responsable:</strong> ${responsable}</div>
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="display:flex; justify-content:space-between; margin-bottom: 2px; font-size:11px;">
+          <span>${producto} (${unidad})</span>
+          <strong>${cantidad}</strong>
+        </div>
+        <hr style="border-top:1px dashed #000; margin: 6px 0;">
+        <br><br>
+        <div style="text-align:center; font-size:9px;">___________________________<br>Firma Quien Autoriza / Recibe</div>
+      `;
+
+      window.print();
+    }
+
+    function descargarDetalleEnImagenPNG() {
+      const elemento = document.getElementById('recibo-movimiento-target');
+      const ref = (estado.movimientoSeleccionado && (estado.movimientoSeleccionado.Referencia || estado.movimientoSeleccionado['No. Orden Despacho'])) || 'MOV';
+      html2canvas(elemento, { scale: 2 }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `Comprobante_Bodega_MAF_${ref}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    }
+
+    function filtrarMovimientos() {
+      const desde = document.getElementById('filtro-fecha-desde').value;
+      const hasta = document.getElementById('filtro-fecha-hasta').value;
+
+      if (!desde && !hasta) {
+        renderizarMovimientos();
+        return;
+      }
+
+      const filtrados = estado.movimientos.filter(m => {
+        const fechaStr = m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho'] || '';
+        return (!desde || fechaStr >= desde) && (!hasta || fechaStr <= (hasta + ' 23:59:59'));
+      });
+
+      renderizarMovimientos(filtrados);
+    }
+
+    // =========================================================================
+    // 3. MÓDULO: DESPACHO / SALIDAS POS
+    // =========================================================================
+    function agregarFilaDespacho() {
+      const contenedor = document.getElementById('contenedor-filas-despacho');
+      const div = document.createElement('div');
+      div.className = 'fila-item-despacho flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80';
+      
+      const opciones = estado.inventario.map(p => {
+        const sku = p.SKU || p.sku;
+        const nombre = p['Descripción del Producto'] || p.nombre;
+        const unidad = p.Unidad || p.unidad;
+        const stock = p['Stock Actual'] !== undefined ? p['Stock Actual'] : p.stock;
+        return `<option value="${sku}">${nombre} [${unidad}] - Disp: ${stock}</option>`;
+      }).join('');
+
+      div.innerHTML = `
+        <select class="item-desp-sku flex-1 p-2 rounded-lg border border-slate-300 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none">
+          ${opciones}
+        </select>
+        <div class="flex items-center gap-1">
+          <input type="number" min="1" value="1" class="item-desp-cant w-24 p-2 rounded-lg border border-slate-300 text-xs font-mono-code font-bold text-center focus:ring-1 focus:ring-blue-600 focus:outline-none">
+        </div>
+        <button onclick="this.parentElement.remove(); calcularTotalItemsDespacho();" class="text-slate-400 hover:text-rose-600 p-2 transition font-bold">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      `;
+      contenedor.appendChild(div);
+      calcularTotalItemsDespacho();
+    }
+
+    function calcularTotalItemsDespacho() {
+      let count = 0;
+      document.querySelectorAll('.item-desp-cant').forEach(input => {
+        count += Number(input.value || 0);
+      });
+      document.getElementById('despacho-total-items').innerText = count;
+    }
+
+    async function procesarDespacho(imprimirTicket = true) {
+      const autoriza = document.getElementById('despacho-autoriza').value.trim();
+      const solicita = document.getElementById('despacho-solicitante').value.trim();
+      const doc = document.getElementById('despacho-documento').value.trim();
+      const vehiculo = document.getElementById('despacho-vehiculo').value.trim();
+      const destino = document.getElementById('despacho-destino').value.trim();
+
+      if (!autoriza || !solicita) {
+        alert('Debe especificar quién autoriza la salida y quién retira el despacho.');
+        return;
+      }
+
+      const filas = document.querySelectorAll('.fila-item-despacho');
+      const items = [];
+
+      filas.forEach(f => {
+        const sku = f.querySelector('.item-desp-sku').value;
+        const cant = Number(f.querySelector('.item-desp-cant').value || 0);
+        const prod = estado.inventario.find(p => (p.SKU || p.sku) === sku);
+        if (prod && cant > 0) {
+          items.push({
+            sku,
+            nombre: prod['Descripción del Producto'] || prod.nombre,
+            unidad: prod.Unidad || prod.unidad,
+            cantidad: cant
+          });
+        }
+      });
+
+      if (items.length === 0) {
+        alert('Agregue al menos un producto a despachar con cantidad válida.');
+        return;
+      }
+
+      const fechaHora = formatearFechaLegible(new Date());
+      const numOrden = 'DESP-' + Date.now().toString().slice(-6);
+
+      items.forEach(it => {
+        const p = estado.inventario.find(prod => (prod.SKU || prod.sku) === it.sku);
+        if (p) {
+          p['Stock Actual'] = Math.max(0, Number(p['Stock Actual'] || 0) - it.cantidad);
+        }
+
+        estado.movimientos.unshift({
+          Fecha: fechaHora,
+          Referencia: numOrden,
+          Tipo: 'SALIDA',
+          Producto: it.nombre,
+          Unidad: it.unidad,
+          Cantidad: it.cantidad,
+          Trazabilidad: `${solicita} (${destino || 'Retiro en Bodega'})`,
+          Responsable: autoriza
+        });
+      });
+
+      guardarInventarioLocal();
+      guardarMovimientosLocal();
+      renderizarCatalogo();
+      renderizarBandejaPedidos();
+      renderizarMovimientos();
+
+      enviarComandoGoogleSheets({
+        action: 'registrarSalida',
+        autorizadoPor: autoriza,
+        solicitante: solicita,
+        documento: doc,
+        destino: destino + (vehiculo ? ` [Veh: ${vehiculo}]` : ''),
+        items: items
+      });
+
+      if (imprimirTicket) {
+        imprimirTicketPOS(numOrden, fechaHora, autoriza, solicita, doc, vehiculo, destino, items);
+      }
+
+      alert(`¡Orden de Egreso ${numOrden} registrada con éxito!`);
+      document.getElementById('despacho-solicitante').value = '';
+      document.getElementById('despacho-documento').value = '';
+      document.getElementById('despacho-vehiculo').value = '';
+      document.getElementById('despacho-destino').value = '';
+      document.getElementById('despacho-notas').value = '';
+      document.getElementById('contenedor-filas-despacho').innerHTML = '';
+      agregarFilaDespacho();
+    }
+
+    function imprimirTicketPOS(numOrden, fecha, autoriza, solicita, doc, vehiculo, destino, items) {
+      const area = document.getElementById('area-impresion-pos');
+      let filasHtml = items.map(it => `
+        <div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
+          <span>${it.nombre} (${it.unidad})</span>
+          <strong>${it.cantidad}</strong>
+        </div>
+      `).join('');
+
+      area.innerHTML = `
+        <div style="text-align:center; font-weight:bold; font-size:13px;">BODEGA MAF</div>
+        <div style="text-align:center; font-size:10px;">ORDEN DE EGRESO DE BODEGA</div>
+        <div style="text-align:center; font-size:9px;">Inírida, Guainía</div>
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="font-size:10px;"><strong>No. Orden:</strong> ${numOrden}</div>
+        <div style="font-size:10px;"><strong>Fecha:</strong> ${fecha}</div>
+        <div style="font-size:10px;"><strong>Autoriza:</strong> ${autoriza}</div>
+        <div style="font-size:10px;"><strong>Retira:</strong> ${solicita}</div>
+        ${doc ? `<div style="font-size:10px;"><strong>Doc/Cel:</strong> ${doc}</div>` : ''}
+        ${vehiculo ? `<div style="font-size:10px;"><strong>Vehículo:</strong> ${vehiculo}</div>` : ''}
+        ${destino ? `<div style="font-size:10px;"><strong>Destino:</strong> ${destino}</div>` : ''}
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="font-weight:bold; font-size:10px; margin-bottom:3px;">DESCRIPCIÓN / CANTIDAD</div>
+        ${filasHtml}
+        <hr style="border-top:1px dashed #000; margin: 6px 0;">
+        <br><br>
+        <div style="text-align:center; font-size:9px;">___________________________<br>Firma Quien Autoriza</div>
+        <br><br>
+        <div style="text-align:center; font-size:9px;">___________________________<br>Recibido a Satisfacción</div>
+      `;
+      window.print();
+    }
+
+    // =========================================================================
+    // 4. MÓDULO: CRUD CATÁLOGO
+    // =========================================================================
+    function renderizarCatalogo() {
+      const tbody = document.getElementById('tbody-catalogo');
+      tbody.innerHTML = '';
+      let totalStockFisico = 0;
+
+      estado.inventario.forEach(p => {
+        const sku = p.SKU || p.sku || 'N/A';
+        const nombre = p['Descripción del Producto'] || p.nombre || p.descripcion || 'Sin Nombre';
+        const cat = p['Categoría'] || p.categoria || 'General';
+        const unidad = p.Unidad || p.unidad || 'Unidad';
+        const stock = Number(p['Stock Actual'] !== undefined ? p['Stock Actual'] : (p.stock || 0));
+        const stockMin = Number(p['Stock Mínimo'] || p.min || 10);
+        totalStockFisico += stock;
+
+        let badgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+        let badgeText = 'Disponible';
+        if (stock <= 0) {
+          badgeClass = 'bg-rose-100 text-rose-800 border-rose-200';
+          badgeText = 'Agotado';
+        } else if (stock <= stockMin) {
+          badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+          badgeText = 'Alerta Mínimo';
+        }
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
+        tr.innerHTML = `
+          <td class="p-3.5 font-mono-code font-bold text-slate-800">${sku}</td>
+          <td class="p-3.5 font-bold text-slate-900">${nombre}</td>
+          <td class="p-3.5 text-slate-600">${cat}</td>
+          <td class="p-3.5 font-semibold text-slate-700">
+            <span class="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">${unidad}</span>
+          </td>
+          <td class="p-3.5 text-right font-black text-slate-900 text-sm font-mono-code">${stock}</td>
+          <td class="p-3.5 text-center">
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${badgeClass}">${badgeText}</span>
+          </td>
+          <td class="p-3.5 text-center">
+            <div class="flex items-center justify-center gap-2">
+              <button onclick="abrirModalEditarProducto('${sku}')" title="Modificar Artículo" class="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition font-bold">
+                <i class="fa-solid fa-pen-to-square"></i>
+              </button>
+              <button onclick="eliminarProductoCatalogo('${sku}')" title="Eliminar del Catálogo" class="p-1.5 text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-lg transition font-bold">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById('conteo-articulos').innerText = `${estado.inventario.length} artículos registrados (${totalStockFisico} bultos/unidades en custodia)`;
+    }
+
+    function abrirModalProductoNuevo() {
+      document.getElementById('modal-producto-titulo').innerText = 'Crear Nuevo Artículo de Inventario';
+      document.getElementById('form-prod-sku').disabled = false;
+      document.getElementById('form-prod-sku').value = 'SKU-MAF-' + String(Math.floor(Math.random() * 900) + 100);
+      document.getElementById('form-prod-nombre').value = '';
+      document.getElementById('form-prod-stock-inicial').value = '0';
+      document.getElementById('contenedor-stock-inicial').classList.remove('hidden');
+      document.getElementById('modal-producto').classList.remove('hidden');
+    }
+
+    function abrirModalEditarProducto(sku) {
+      const prod = estado.inventario.find(p => (p.SKU || p.sku) === sku);
+      if (!prod) return;
+
+      document.getElementById('modal-producto-titulo').innerText = 'Modificar Artículo';
+      document.getElementById('form-prod-sku').value = sku;
+      document.getElementById('form-prod-sku').disabled = true;
+      document.getElementById('form-prod-nombre').value = prod['Descripción del Producto'] || prod.nombre;
+      document.getElementById('form-prod-categoria').value = prod['Categoría'] || prod.categoria || 'General';
+      document.getElementById('form-prod-unidad').value = prod.Unidad || prod.unidad || 'Bulto';
+      document.getElementById('form-prod-stock-minimo').value = prod['Stock Mínimo'] || 10;
+      document.getElementById('contenedor-stock-inicial').classList.add('hidden');
+      document.getElementById('modal-producto').classList.remove('hidden');
+    }
+
+    function cerrarModalProducto() {
+      document.getElementById('modal-producto').classList.add('hidden');
+    }
+
+    async function guardarProductoCatalogo() {
+      const sku = document.getElementById('form-prod-sku').value.trim();
+      const nombre = document.getElementById('form-prod-nombre').value.trim();
+      const categoria = document.getElementById('form-prod-categoria').value;
+      const unidad = document.getElementById('form-prod-unidad').value;
+      const stockInicial = Number(document.getElementById('form-prod-stock-inicial').value || 0);
+      const stockMinimo = Number(document.getElementById('form-prod-stock-minimo').value || 10);
+
+      if (!sku || !nombre) {
+        alert('Por favor ingrese el código SKU y el nombre del artículo.');
+        return;
+      }
+
+      const index = estado.inventario.findIndex(p => (p.SKU || p.sku) === sku);
+      if (index >= 0) {
+        estado.inventario[index]['Descripción del Producto'] = nombre;
+        estado.inventario[index]['Categoría'] = categoria;
+        estado.inventario[index]['Unidad'] = unidad;
+        estado.inventario[index]['Stock Mínimo'] = stockMinimo;
       } else {
-        const newRow = sheet.getLastRow() + 1;
-        const stockInicial = Number(data.stockInicial || 0);
-        const stockMin = Number(data.stockMinimo || 10);
-        const formulaEntradas = '=SUMIF(ENTRADAS!$C:$C, A' + newRow + ', ENTRADAS!$G:$G)';
-        const formulaSalidas = '=SUMIF(SALIDAS!$C:$C, A' + newRow + ', SALIDAS!$G:$G)';
-        const formulaActual = '=E' + newRow + ' + F' + newRow + ' - G' + newRow;
-        const formulaEstado = '=IF(H' + newRow + '<=0, "Agotado", IF(H' + newRow + '<=I' + newRow + ', "Alerta Mínimo", "Disponible"))';
+        estado.inventario.push({
+          SKU: sku,
+          'Descripción del Producto': nombre,
+          'Categoría': categoria,
+          'Unidad': unidad,
+          'Stock Inicial': stockInicial,
+          'Stock Actual': stockInicial,
+          'Stock Mínimo': stockMinimo,
+          'Estado Disponibilidad': stockInicial > 0 ? 'Disponible' : 'Agotado'
+        });
+      }
 
-        sheet.appendRow([
-          data.sku,
-          data.nombre,
-          data.categoria,
-          data.unidad,
-          stockInicial,
-          formulaEntradas,
-          formulaSalidas,
-          formulaActual,
-          stockMin,
-          formulaEstado
-        ]);
+      guardarInventarioLocal();
+      renderizarCatalogo();
+      renderizarBandejaPedidos();
+      actualizarSelectsProductos();
+      actualizarDataListContactos();
+      cerrarModalProducto();
 
-        SpreadsheetApp.flush();
-        return jsonResponse({ success: true, message: 'Producto creado' });
+      enviarComandoGoogleSheets({
+        action: 'guardarProducto',
+        sku, nombre, categoria, unidad, stockInicial, stockMinimo
+      });
+    }
+
+    async function eliminarProductoCatalogo(sku) {
+      if (!confirm(`¿Está seguro de eliminar el artículo ${sku} del catálogo?`)) return;
+
+      estado.inventario = estado.inventario.filter(p => (p.SKU || p.sku) !== sku);
+      guardarInventarioLocal();
+      renderizarCatalogo();
+      renderizarBandejaPedidos();
+      actualizarSelectsProductos();
+      actualizarDataListContactos();
+
+      enviarComandoGoogleSheets({ action: 'eliminarProducto', sku });
+    }
+
+    function filtrarCatalogo() {
+      const q = document.getElementById('filtro-catalogo').value.toLowerCase();
+      document.querySelectorAll('#tbody-catalogo tr').forEach(fila => {
+        fila.style.display = fila.innerText.toLowerCase().includes(q) ? '' : 'none';
+      });
+    }
+
+    // =========================================================================
+    // 5. EXPORTACIONES EXCEL (.XLSX)
+    // =========================================================================
+    function exportarExcelInventario() {
+      const data = estado.inventario.map(p => ({
+        'Código SKU': p.SKU || p.sku,
+        'Descripción del Producto': p['Descripción del Producto'] || p.nombre,
+        'Categoría': p['Categoría'] || p.categoria,
+        'Unidad de Medida': p.Unidad || p.unidad,
+        'Stock Actual en Bodega': p['Stock Actual'] !== undefined ? p['Stock Actual'] : p.stock,
+        'Stock Mínimo': p['Stock Mínimo'] || 10,
+        'Estado': p['Estado Disponibilidad'] || 'Disponible'
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Inventario_Custodia');
+      XLSX.writeFile(wb, `BODEGA_MAF_Inventario_${new Date().toISOString().slice(0,10)}.xlsx`);
+    }
+
+    function exportarExcelKardex() {
+      const desde = document.getElementById('filtro-fecha-desde').value || 'Inicio';
+      const hasta = document.getElementById('filtro-fecha-hasta').value || 'Fin';
+
+      const data = estado.movimientos.map(m => ({
+        'Fecha y Hora': formatearFechaLegible(m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho']),
+        'No. Referencia / Orden': m['Documento Referencia'] || m.Referencia || m['No. Orden Despacho'],
+        'Tipo de Movimiento': m['Tipo Movimiento'] || m.Tipo,
+        'Producto': m.Producto || m['Producto / Descripción'],
+        'Unidad': m.Unidad,
+        'Cantidad': m.Cantidad,
+        'Trazabilidad / Destino': m.Trazabilidad || m['Destinatario / Obra'],
+        'Responsable / Autorizado': m.Responsable || m['Autorizado Por']
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Kardex_Movimientos');
+      XLSX.writeFile(wb, `BODEGA_MAF_Movimientos_${desde}_al_${hasta}.xlsx`);
+    }
+
+    // =========================================================================
+    // 6. CONTACTOS & CIERRE DIARIO
+    // =========================================================================
+        // Helper para normalizar propiedades de contactos vengan de Sheets o de LocalStorage
+    function normalizarContacto(c) {
+      return {
+        id: c['ID Contacto'] || c.id || String(Math.random()),
+        nombre: c['Nombre / Razón Social'] || c.nombre || c.Nombre_Completo || '',
+        rol: c['Tipo de Contacto'] || c.rol || c.Rol || 'General',
+        tel: c['Teléfono'] || c.telefono || c.tel || c.Telefono_Contacto || '',
+        doc: c['Cédula'] || c.documento || c.doc || '',
+        notas: c['Ubicación / Puerto'] || c['Correo / Canal'] || c.notas || c.observaciones || ''
+      };
+    }
+
+    function renderizarContactos() {
+      const contenedor = document.getElementById('contenedor-contactos');
+      contenedor.innerHTML = '';
+
+      estado.contactos.forEach((raw, idx) => {
+        const c = normalizarContacto(raw);
+        if (!c.nombre) return;
+
+        const div = document.createElement('div');
+        div.className = 'bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between';
+        div.innerHTML = `
+          <div>
+            <div class="flex justify-between items-start mb-1">
+              <h4 class="font-bold text-slate-900 text-sm">${c.nombre}</h4>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700">${c.rol}</span>
+            </div>
+            <p class="text-xs text-slate-500"><i class="fa-solid fa-phone mr-1"></i> ${c.tel || 'Sin número'}</p>
+            ${c.doc ? `<p class="text-xs text-slate-500"><i class="fa-solid fa-id-card mr-1"></i> ${c.doc}</p>` : ''}
+            ${c.notas ? `<p class="text-xs text-slate-400 mt-2 italic">${c.notas}</p>` : ''}
+          </div>
+          <button onclick="eliminarContactoPorIndice(${idx})" class="mt-3 text-rose-500 hover:text-rose-700 text-xs font-bold text-right">
+            <i class="fa-solid fa-trash mr-1"></i> Eliminar
+          </button>
+        `;
+        contenedor.appendChild(div);
+      });
+      actualizarDataListContactos();
+    }
+
+    function actualizarDataListContactos() {
+      const listaAutorizan = document.getElementById('lista-autorizan');
+      const listaTransportadores = document.getElementById('lista-transportadores');
+
+      if (!listaAutorizan || !listaTransportadores) return;
+
+      const contactosNorm = estado.contactos.map(normalizarContacto).filter(c => c.nombre);
+
+      // Contactos para autorizar: aquellos con rol de Autoriza, Dirección, Administración o todos si no hay filtro
+      const autorizadores = contactosNorm.filter(c => /autoriza|direcci|administra|operaci/i.test(c.rol));
+      const listaFinalAutorizan = autorizadores.length > 0 ? autorizadores : contactosNorm;
+
+      listaAutorizan.innerHTML = listaFinalAutorizan.map(c => 
+        `<option value="${c.nombre}">${c.rol}${c.tel ? ' - ' + c.tel : ''}</option>`
+      ).join('');
+
+      // Contactos para retirar / transportar:
+      listaTransportadores.innerHTML = contactosNorm.map(c => 
+        `<option value="${c.nombre}">${c.rol}${c.tel ? ' - ' + c.tel : ''}</option>`
+      ).join('');
+    }
+
+    function abrirModalContacto() {
+      document.getElementById('modal-contacto').classList.remove('hidden');
+    }
+
+    function cerrarModalContacto() {
+      document.getElementById('modal-contacto').classList.add('hidden');
+    }
+
+    function guardarContacto() {
+      const nombre = document.getElementById('contacto-nombre').value.trim();
+      const rol = document.getElementById('contacto-rol').value;
+      const tel = document.getElementById('contacto-tel').value.trim();
+      const doc = document.getElementById('contacto-doc').value.trim();
+      const notas = document.getElementById('contacto-notas').value.trim();
+
+      if (!nombre) {
+        alert('Ingrese el nombre del contacto');
+        return;
+      }
+
+      const nuevoId = 'CONT-' + Math.floor(Math.random() * 9000 + 1000);
+      estado.contactos.push({
+        'ID Contacto': nuevoId,
+        'Nombre / Razón Social': nombre,
+        'Tipo de Contacto': rol,
+        'Teléfono': tel,
+        'Cédula': doc,
+        'Correo / Canal': notas
+      });
+
+      guardarContactosLocal();
+      renderizarContactos();
+      actualizarDataListContactos();
+      cerrarModalContacto();
+
+      enviarComandoGoogleSheets({
+        action: 'guardarContacto',
+        id: nuevoId,
+        nombre: nombre,
+        rol: rol,
+        telefono: tel,
+        documento: doc,
+        observaciones: notas
+      });
+    }
+
+        function eliminarContactoPorIndice(idx) {
+      const raw = estado.contactos[idx];
+      if (!raw) return;
+      const c = normalizarContacto(raw);
+
+      if (!confirm(`¿Seguro que deseas eliminar el contacto "${c.nombre}"?`)) {
+        return;
+      }
+
+      // Remover del arreglo local
+      estado.contactos.splice(idx, 1);
+      guardarContactosLocal();
+      renderizarContactos();
+      actualizarDataListContactos();
+
+      // Enviar instrucción a Google Sheets
+      enviarComandoGoogleSheets({
+        action: 'eliminarContacto',
+        id: c.id,
+        nombre: c.nombre
+      });
+    }
+
+    function eliminarContacto(id, nombre) {
+      const idx = estado.contactos.findIndex(item => {
+        const norm = normalizarContacto(item);
+        return norm.id === id || norm.nombre.toLowerCase() === (nombre || '').toLowerCase();
+      });
+      if (idx >= 0) {
+        eliminarContactoPorIndice(idx);
       }
     }
 
-    // --- 5. ELIMINAR PRODUCTO ---
-    if (action === 'eliminarProducto') {
-      const sheet = ss.getSheetByName(SHEET_INVENTARIO);
-      const values = sheet.getDataRange().getValues();
-      let rowIndex = -1;
 
-      for (let i = 1; i < values.length; i++) {
-        if (String(values[i][0]).trim() === String(data.sku).trim()) {
-          rowIndex = i + 1;
-          break;
+        function obtenerMovimientosDelDia() {
+      const now = new Date();
+      const dia = String(now.getDate()).padStart(2, '0');
+      const mes = String(now.getMonth() + 1).padStart(2, '0');
+      const anio = now.getFullYear();
+      const p1 = `${dia}/${mes}/${anio}`;
+      const p2 = `${anio}-${mes}-${dia}`;
+      const p3 = `${now.getDate()}/${now.getMonth() + 1}/${anio}`;
+
+      const delDia = estado.movimientos.filter(m => {
+        const f = String(m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho'] || '');
+        return f.includes(p1) || f.includes(p2) || f.includes(p3);
+      });
+
+      // Si aún no hay movimientos de hoy (ej. en pruebas o datos precargados), tomamos los movimientos registrados disponibles
+      return delDia.length > 0 ? delDia : estado.movimientos.slice(0, 20);
+    }
+
+
+    // =========================================================================
+    // MÓDULO: SOLICITUD DE PEDIDO CORPORATIVO & AUTORIZACIÓN POR PIN
+    // =========================================================================
+
+    // =========================================================================
+    // MÓDULO: BANDEJA ADMINISTRATIVA DE PEDIDOS DE EMPRESA (EN VIVO)
+    // =========================================================================
+    function normalizarPedido(p) {
+      return {
+        id: p.ID_Pedido || p['ID_Pedido'] || p.idPedido || p.id || 'PED-S/N',
+        fecha: formatearFechaLegible(p.Fecha_Hora_Solicitud || p['Fecha_Hora_Solicitud'] || p.fechaHora || p.fecha),
+        empresa: p.Empresa_Solicitante || p['Empresa_Solicitante'] || p.empresa || 'Empresa MAF',
+        reclama: p.Quien_Reclama || p['Quien_Reclama'] || p.reclama || 'No especificado',
+        autoriza: p.Quien_Autoriza || p['Quien_Autoriza'] || p.autoriza || 'Directiva',
+        productos: p.Productos_Cantidades || p['Productos_Cantidades'] || p.productos || '',
+        destino: p.Observaciones_Destino || p['Observaciones_Destino'] || p.destino || '',
+        estado: p.Estado || p['Estado'] || p.estado || 'Pendiente'
+      };
+    }
+
+    function renderizarBandejaPedidos() {
+      const tbody = document.getElementById('tbody-pedidos-empresa');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      let lista = estado.pedidos || [];
+      if (estado.filtroPedidoActual !== 'TODOS') {
+        lista = lista.filter(p => {
+          const norm = normalizarPedido(p);
+          return norm.estado.toLowerCase() === estado.filtroPedidoActual.toLowerCase();
+        });
+      }
+
+      // Conteo de pendientes para el badge de navegación
+      const pendientes = (estado.pedidos || []).filter(p => normalizarPedido(p).estado.toLowerCase() === 'pendiente');
+      const badgeNav = document.getElementById('badge-pedidos-pendientes');
+      if (badgeNav) {
+        if (pendientes.length > 0) {
+          badgeNav.innerText = pendientes.length;
+          badgeNav.classList.remove('hidden');
+        } else {
+          badgeNav.classList.add('hidden');
         }
       }
 
-      if (rowIndex > 0) {
-        sheet.deleteRow(rowIndex);
-        SpreadsheetApp.flush();
-        return jsonResponse({ success: true, message: 'Producto eliminado' });
+      const totalConteo = document.getElementById('conteo-pedidos-totales');
+      if (totalConteo) {
+        totalConteo.innerText = `${estado.pedidos.length} pedidos (${pendientes.length} pendientes)`;
       }
-      return jsonResponse({ success: false, error: 'Producto no encontrado' });
+
+      if (lista.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-400 italic">No hay pedidos registrados en este estado.</td></tr>`;
+        return;
+      }
+
+      lista.forEach(raw => {
+        const p = normalizarPedido(raw);
+        const esPendiente = p.estado.toLowerCase() === 'pendiente';
+        const badgeColor = esPendiente ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-emerald-100 text-emerald-800 border-emerald-200';
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50 transition border-b border-slate-100';
+        tr.innerHTML = `
+          <td class="p-3.5 font-mono-code font-bold text-slate-900">${p.id}</td>
+          <td class="p-3.5 font-mono-code text-slate-600">${p.fecha}</td>
+          <td class="p-3.5 font-bold text-slate-900">${p.empresa}</td>
+          <td class="p-3.5 text-slate-700 font-semibold">${p.reclama}</td>
+          <td class="p-3.5">
+            <span class="inline-flex items-center gap-1 font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+              <i class="fa-solid fa-key text-[10px]"></i> ${p.autoriza}
+            </span>
+          </td>
+          <td class="p-3.5 text-slate-800 font-medium max-w-[280px]">
+            <div class="line-clamp-2" title="${p.productos}">${p.productos}</div>
+            ${p.destino ? `<div class="text-[10px] text-slate-400 mt-0.5 italic">Destino: ${p.destino}</div>` : ''}
+          </td>
+          <td class="p-3.5 text-center">
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${badgeColor}">
+              ${p.estado}
+            </span>
+          </td>
+          <td class="p-3.5 text-center">
+            <div class="flex items-center justify-center gap-1.5">
+              <button onclick="reimprimirPedidoEmpresaPOS('${p.id}')" title="Imprimir Ticket POS" class="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg transition font-bold">
+                <i class="fa-solid fa-print"></i>
+              </button>
+              ${esPendiente ? `
+                <button onclick="marcarPedidoDespachado('${p.id}')" title="Marcar como Despachado" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition text-[10px] font-extrabold flex items-center gap-1 shadow-sm">
+                  <i class="fa-solid fa-check"></i> Despachar
+                </button>
+              ` : `
+                <span class="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5">
+                  <i class="fa-solid fa-check-double"></i> Listo
+                </span>
+              `}
+            </div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
-    // --- 6. REGISTRAR ENTRADA FLUVIAL ---
-    if (action === 'registrarEntrada') {
-      const sheetEntradas = ss.getSheetByName(SHEET_ENTRADAS);
-      const sheetKardex = ss.getSheetByName(SHEET_KARDEX);
-      const timestamp = new Date();
-      const fechaStr = Utilities.formatDate(timestamp, 'GMT-5', 'yyyy-MM-dd HH:mm');
-
-      data.items.forEach(item => {
-        const idEntrada = data.remision || ('ING-' + Utilities.formatDate(timestamp, 'GMT-5', 'yyyyMMdd-HHmmss'));
-        sheetEntradas.appendRow([
-          idEntrada,
-          fechaStr,
-          item.sku,
-          item.nombre,
-          item.unidad,
-          data.lancha || 'Transporte Fluvial',
-          Number(item.cantidad),
-          'Bodega Central',
-          data.remision || idEntrada,
-          data.recibidoPor
-        ]);
-
-        sheetKardex.appendRow([
-          fechaStr,
-          idEntrada,
-          'ENTRADA',
-          item.sku,
-          item.nombre,
-          item.unidad,
-          Number(item.cantidad),
-          data.lancha ? 'Entrega: ' + data.lancha : 'Ingreso directo',
-          data.recibidoPor,
-          'Ingreso Bodega'
-        ]);
+    function filtrarPedidosPorEstado(estadoFiltro) {
+      estado.filtroPedidoActual = estadoFiltro;
+      document.querySelectorAll('.filtro-pedido-btn').forEach(b => {
+        b.className = 'filtro-pedido-btn px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50';
       });
 
-      SpreadsheetApp.flush();
-      return jsonResponse({ success: true, message: 'Ingreso guardado' });
+      const btnId = estadoFiltro === 'TODOS' ? 'btn-filtro-ped-todos' : (estadoFiltro === 'Pendiente' ? 'btn-filtro-ped-pendiente' : 'btn-filtro-ped-despachado');
+      const activo = document.getElementById(btnId);
+      if (activo) {
+        activo.className = 'filtro-pedido-btn px-3 py-1.5 rounded-xl bg-slate-900 text-white shadow-sm';
+      }
+      renderizarBandejaPedidos();
     }
 
-    // --- 7. REGISTRAR SALIDA DIRECTA ---
-    if (action === 'registrarSalida') {
-      const sheetSalidas = ss.getSheetByName(SHEET_SALIDAS);
-      const sheetKardex = ss.getSheetByName(SHEET_KARDEX);
-      const timestamp = new Date();
-      const fechaStr = Utilities.formatDate(timestamp, 'GMT-5', 'yyyy-MM-dd HH:mm');
-      const numOrden = 'DESP-' + Utilities.formatDate(timestamp, 'GMT-5', 'yyyyMMdd-HHmmss');
+    async function marcarPedidoDespachado(idPedido) {
+      const p = (estado.pedidos || []).find(item => normalizarPedido(item).id === idPedido);
+      if (!p) return;
 
-      data.items.forEach(item => {
-        const idSalida = 'SAL-' + Utilities.formatDate(timestamp, 'GMT-5', 'yyyyMMdd-HHmmss') + '-' + Math.floor(Math.random() * 100);
-        sheetSalidas.appendRow([
-          idSalida,
-          fechaStr,
-          item.sku,
-          item.nombre,
-          item.unidad,
-          numOrden,
-          Number(item.cantidad),
-          data.solicitante + (data.destino ? ' / ' + data.destino : ''),
-          'Retiro en Bodega',
-          data.autorizadoPor,
-          data.solicitante,
-          'Entregado'
-        ]);
+      if (!confirm(`¿Confirmas que el pedido ${idPedido} ya fue alistado y entregado físicamente?`)) {
+        return;
+      }
 
-        sheetKardex.appendRow([
-          fechaStr,
-          numOrden,
-          'SALIDA',
-          item.sku,
-          item.nombre,
-          item.unidad,
-          Number(item.cantidad),
-          data.solicitante + (data.destino ? ' (' + data.destino + ')' : ''),
-          data.autorizadoPor,
-          'Orden de Egreso'
-        ]);
+      if (p.Estado !== undefined) p.Estado = 'Despachado';
+      if (p.estado !== undefined) p.estado = 'Despachado';
+      localStorage.setItem('maf_pedidos', JSON.stringify(estado.pedidos));
+      renderizarBandejaPedidos();
+
+      // Enviar actualización a Google Sheets
+      enviarComandoGoogleSheets({
+        action: 'actualizarEstadoPedido',
+        idPedido: idPedido,
+        nuevoEstado: 'Despachado'
+      });
+    }
+
+    function reimprimirPedidoEmpresaPOS(idPedido) {
+      const pRaw = (estado.pedidos || []).find(item => normalizarPedido(item).id === idPedido);
+      if (!pRaw) return;
+      const p = normalizarPedido(pRaw);
+
+      const area = document.getElementById('area-impresion-pos');
+      area.innerHTML = `
+        <div style="text-align:center; font-weight:bold; font-size:13px;">BODEGA MAF</div>
+        <div style="text-align:center; font-size:10px;">ORDEN DE PEDIDO CORPORATIVO</div>
+        <div style="text-align:center; font-size:9px;">Inírida, Guainía</div>
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="font-size:10px;"><strong>No. Pedido:</strong> ${p.id}</div>
+        <div style="font-size:10px;"><strong>Fecha:</strong> ${p.fecha}</div>
+        <div style="font-size:10px;"><strong>Empresa:</strong> ${p.empresa}</div>
+        <div style="font-size:10px;"><strong>Reclama:</strong> ${p.reclama}</div>
+        <div style="font-size:10px;"><strong>Autorizó (PIN):</strong> ${p.autoriza}</div>
+        ${p.destino ? `<div style="font-size:10px;"><strong>Destino:</strong> ${p.destino}</div>` : ''}
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="font-weight:bold; font-size:10px; margin-bottom: 3px;">PRODUCTOS SOLICITADOS</div>
+        <div style="font-size:10px; line-height: 1.4;">${p.productos.replace(/;/g, '<br>• ')}</div>
+        <hr style="border-top:1px dashed #000; margin: 6px 0;">
+        <br><br>
+        <div style="text-align:center; font-size:9px;">___________________________<br>Firma Quien Entrega en Bodega</div>
+        <br><br>
+        <div style="text-align:center; font-size:9px;">___________________________<br>Recibido a Satisfacción (Reclama)</div>
+      `;
+      window.print();
+    }
+
+    function exportarExcelPedidosEmpresa() {
+      const data = (estado.pedidos || []).map((raw, i) => {
+        const p = normalizarPedido(raw);
+        return {
+          'No.': i + 1,
+          'ID Pedido': p.id,
+          'Fecha y Hora': p.fecha,
+          'Empresa Solicitante': p.empresa,
+          'Quién Reclama': p.reclama,
+          'Autorizado Por': p.autoriza,
+          'Productos y Cantidades': p.productos,
+          'Destino / Observaciones': p.destino,
+          'Estado': p.estado
+        };
       });
 
-      SpreadsheetApp.flush();
-      return jsonResponse({ success: true, numOrden: numOrden, message: 'Orden registrada' });
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Pedidos_Empresa');
+      XLSX.writeFile(wb, `BODEGA_MAF_Pedidos_Empresa_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
-    // --- 8. GUARDAR CONTACTO ---
-    if (action === 'guardarContacto') {
-      const sheet = ss.getSheetByName(SHEET_CONTACTOS);
-      const idContacto = data.id || ('CONT-' + Math.floor(Math.random() * 9000 + 1000));
-      sheet.appendRow([
-        idContacto,
-        data.nombre,
-        data.rol,
-        data.direccion || 'Inírida',
-        data.telefono,
-        data.observaciones || ''
-      ]);
-      SpreadsheetApp.flush();
-      return jsonResponse({ success: true, message: 'Contacto guardado' });
+    function setFechaActualSolicitud() {
+      const input = document.getElementById('sol-fecha');
+      if (input) {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        input.value = now.toISOString().slice(0, 16);
+      }
     }
 
-    // --- 9. ELIMINAR CONTACTO ---
-    if (action === 'eliminarContacto') {
-      const sheet = ss.getSheetByName(SHEET_CONTACTOS);
-      const values = sheet.getDataRange().getValues();
-      let rowIndex = -1;
+    function agregarFilaSolicitud() {
+      const contenedor = document.getElementById('contenedor-filas-solicitud');
+      if (!contenedor) return;
 
-      for (let i = 1; i < values.length; i++) {
-        const idSheet = String(values[i][0]).trim();
-        const nombreSheet = String(values[i][1]).trim();
-        if ((data.id && idSheet === String(data.id).trim()) ||
-            (data.nombre && nombreSheet.toLowerCase() === String(data.nombre).trim().toLowerCase())) {
-          rowIndex = i + 1;
-          break;
+      const div = document.createElement('div');
+      div.className = 'fila-item-solicitud flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80';
+
+      const opciones = estado.inventario.map(p => {
+        const sku = p.SKU || p.sku;
+        const nombre = p['Descripción del Producto'] || p.nombre;
+        const unidad = p.Unidad || p.unidad;
+        const stock = p['Stock Actual'] !== undefined ? p['Stock Actual'] : (p.stock || 0);
+        return `<option value="${sku}" data-stock="${stock}">${nombre} [${unidad}] - DISPONIBLE: ${stock}</option>`;
+      }).join('');
+
+      div.innerHTML = `
+        <select class="item-sol-sku flex-1 p-2 rounded-lg border border-slate-300 text-xs font-semibold focus:ring-1 focus:ring-blue-600 focus:outline-none" onchange="validarMaxStockSolicitud(this)">
+          ${opciones}
+        </select>
+        <div class="flex items-center gap-1">
+          <input type="number" min="1" value="1" class="item-sol-cant w-24 p-2 rounded-lg border border-slate-300 text-xs font-mono-code font-bold text-center focus:ring-1 focus:ring-blue-600 focus:outline-none" oninput="calcularTotalItemsSolicitud(); validarMaxStockSolicitud(this);">
+        </div>
+        <button type="button" onclick="this.parentElement.remove(); calcularTotalItemsSolicitud();" class="text-slate-400 hover:text-rose-600 p-2 transition font-bold">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      `;
+      contenedor.appendChild(div);
+      calcularTotalItemsSolicitud();
+    }
+
+    function validarMaxStockSolicitud(elem) {
+      const fila = elem.closest('.fila-item-solicitud');
+      if (!fila) return;
+      const select = fila.querySelector('.item-sol-sku');
+      const input = fila.querySelector('.item-sol-cant');
+      const opt = select.selectedOptions[0];
+      const stockDisp = Number(opt ? opt.getAttribute('data-stock') : 9999);
+      if (Number(input.value) > stockDisp) {
+        input.value = Math.max(1, stockDisp);
+      }
+    }
+
+    function calcularTotalItemsSolicitud() {
+      let count = 0;
+      document.querySelectorAll('.item-sol-cant').forEach(input => {
+        count += Number(input.value || 0);
+      });
+      const badge = document.getElementById('sol-total-items-badge');
+      if (badge) badge.innerText = count;
+    }
+
+    function abrirModalPinAutorizacion() {
+      const empresa = document.getElementById('sol-empresa').value.trim();
+      const reclama = document.getElementById('sol-reclama').value.trim();
+      const fecha = document.getElementById('sol-fecha').value;
+
+      if (!empresa || !reclama || !fecha) {
+        alert('Por favor complete la fecha, empresa solicitante y el nombre de quien reclama.');
+        return;
+      }
+
+      const filas = document.querySelectorAll('.fila-item-solicitud');
+      if (filas.length === 0) {
+        alert('Agregue al menos un producto a solicitar.');
+        return;
+      }
+
+      document.getElementById('input-pin-autorizacion').value = '';
+      document.getElementById('pin-error-mensaje').classList.add('hidden');
+      document.getElementById('modal-pin-autorizacion').classList.remove('hidden');
+      setTimeout(() => document.getElementById('input-pin-autorizacion').focus(), 100);
+    }
+
+    function cerrarModalPinAutorizacion() {
+      document.getElementById('modal-pin-autorizacion').classList.add('hidden');
+    }
+
+    async function validarPinYProcesarPedido() {
+      const pinIngresado = document.getElementById('input-pin-autorizacion').value.trim();
+      if (!pinIngresado) {
+        document.getElementById('pin-error-mensaje').innerText = 'Por favor ingresa la clave numérica.';
+        document.getElementById('pin-error-mensaje').classList.remove('hidden');
+        return;
+      }
+
+      // Validar contra la lista de autorizadores (leída de Sheets o por defecto)
+      // Clave 7412 -> Miguel Ángel Forero | Clave 9632 -> Julieth
+      let autorizadorEncontrado = null;
+      if (Array.isArray(estado.autorizadores) && estado.autorizadores.length > 0) {
+        autorizadorEncontrado = estado.autorizadores.find(a => {
+          const pinSheet = String(a.PIN_Clave || a['PIN_Clave'] || a.pin || '').trim();
+          return pinSheet === pinIngresado;
+        });
+      }
+
+      // Si no viene de Sheets todavía, usar claves oficiales por defecto
+      if (!autorizadorEncontrado) {
+        if (pinIngresado === '7412') {
+          autorizadorEncontrado = { Nombre_Directivo: 'Miguel Ángel Forero', Rol_Cargo: 'Propietario / Gerencia' };
+        } else if (pinIngresado === '9632') {
+          autorizadorEncontrado = { Nombre_Directivo: 'Julieth', Rol_Cargo: 'Directiva / Administración' };
         }
       }
 
-      if (rowIndex > 0) {
-        sheet.deleteRow(rowIndex);
-        SpreadsheetApp.flush();
-        return jsonResponse({ success: true, message: 'Contacto eliminado' });
+      if (!autorizadorEncontrado) {
+        document.getElementById('pin-error-mensaje').innerText = 'Clave incorrecta. Solo autorizan Miguel Ángel Forero (7412) o Julieth (9632).';
+        document.getElementById('pin-error-mensaje').classList.remove('hidden');
+        return;
       }
-      return jsonResponse({ success: false, error: 'Contacto no encontrado' });
+
+      const nombreAutoriza = autorizadorEncontrado.Nombre_Directivo || autorizadorEncontrado.nombre || 'Directiva MAF';
+
+      // Recopilar datos del pedido
+      const fechaVal = document.getElementById('sol-fecha').value;
+      const empresa = document.getElementById('sol-empresa').value.trim();
+      const reclama = document.getElementById('sol-reclama').value.trim();
+      const destino = document.getElementById('sol-destino').value.trim();
+      const notas = document.getElementById('sol-notas').value.trim();
+
+      const filas = document.querySelectorAll('.fila-item-solicitud');
+      const items = [];
+      filas.forEach(f => {
+        const sku = f.querySelector('.item-sol-sku').value;
+        const cant = Number(f.querySelector('.item-sol-cant').value || 0);
+        const prod = estado.inventario.find(p => (p.SKU || p.sku) === sku);
+        if (prod && cant > 0) {
+          items.push({
+            sku,
+            nombre: prod['Descripción del Producto'] || prod.nombre,
+            unidad: prod.Unidad || prod.unidad,
+            cantidad: cant
+          });
+        }
+      });
+
+      const now = new Date();
+      const idPedido = 'PED-' + UtilitiesFechaCierre(now);
+      const fechaHoraLegible = formatearFechaLegible(fechaVal ? new Date(fechaVal) : now);
+
+      // Descontar inventario y asentar movimiento
+      items.forEach(it => {
+        const p = estado.inventario.find(prod => (prod.SKU || prod.sku) === it.sku);
+        if (p) {
+          p['Stock Actual'] = Math.max(0, Number(p['Stock Actual'] || 0) - it.cantidad);
+        }
+
+        estado.movimientos.unshift({
+          Fecha: fechaHoraLegible,
+          Referencia: idPedido,
+          Tipo: 'SALIDA',
+          Producto: it.nombre,
+          Unidad: it.unidad,
+          Cantidad: it.cantidad,
+          Trazabilidad: `${reclama} (${empresa} - ${destino || 'Uso Empresa'})`,
+          Responsable: `${nombreAutoriza} (PIN)`
+        });
+      });
+
+      guardarInventarioLocal();
+      guardarMovimientosLocal();
+      renderizarCatalogo();
+      renderizarBandejaPedidos();
+      renderizarMovimientos();
+      actualizarSelectsProductos();
+
+      // Enviar a Google Sheets a la pestaña PEDIDOS_EMPRESA y SALIDAS
+      const resumenProductos = items.map(it => `${it.cantidad} ${it.unidad} ${it.nombre}`).join('; ');
+      
+      enviarComandoGoogleSheets({
+        action: 'guardarPedidoEmpresa',
+        idPedido: idPedido,
+        fechaHora: fechaHoraLegible,
+        empresa: empresa,
+        reclama: reclama,
+        autoriza: nombreAutoriza,
+        productos: resumenProductos,
+        destino: destino + (notas ? ' | ' + notas : ''),
+        estado: 'Despachado',
+        items: items
+      });
+
+      cerrarModalPinAutorizacion();
+
+      // Imprimir comprobante POS
+      imprimirTicketPOS(idPedido, fechaHoraLegible, `${nombreAutoriza} (Autorizado por PIN)`, reclama, empresa, 'Transporte Empresa', destino, items);
+
+      alert(`¡Pedido ${idPedido} AUTORIZADO por ${nombreAutoriza} y enviado con éxito a la base de datos de Google Sheets!`);
+
+      // Limpiar formulario de solicitud
+      document.getElementById('sol-empresa').value = '';
+      document.getElementById('sol-reclama').value = '';
+      document.getElementById('sol-destino').value = '';
+      document.getElementById('sol-notas').value = '';
+      document.getElementById('contenedor-filas-solicitud').innerHTML = '';
+      setFechaActualSolicitud();
+      agregarFilaSolicitud();
     }
 
-    return jsonResponse({ success: false, error: 'Acción no válida' });
-  } catch (err) {
-    return jsonResponse({ success: false, error: err.toString() });
-  } finally {
-    lock.releaseLock();
-  }
-}
+    function abrirModalCierre() {
+      const fecha = new Date();
+      document.getElementById('cierre-fecha-texto').innerText = fecha.toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      
+      const movimientosDia = obtenerMovimientosDelDia();
 
-function getSheetData(sheet) {
-  if (!sheet) return [];
-  const values = sheet.getDataRange().getValues();
-  if (values.length <= 1) return [];
-  const headers = values[0];
-  const rows = [];
-  for (let i = 1; i < values.length; i++) {
-    const rowObj = {};
-    for (let j = 0; j < headers.length; j++) {
-      rowObj[headers[j]] = values[i][j];
+      let totalIngresos = 0;
+      let totalSalidas = 0;
+      let despachosCount = 0;
+
+      movimientosDia.forEach(m => {
+        const tipo = (m.Tipo || m['Tipo Movimiento'] || '').toUpperCase();
+        const cant = Number(m.Cantidad || 0);
+        if (tipo === 'ENTRADA') {
+          totalIngresos += cant;
+        } else if (tipo === 'SALIDA') {
+          totalSalidas += cant;
+          despachosCount++;
+        }
+      });
+
+      // Construcción de filas detalladas de movimientos para la imagen de WhatsApp
+      let tablaMovimientosHtml = '';
+      if (movimientosDia.length === 0) {
+        tablaMovimientosHtml = '<p class="text-center text-slate-400 py-3 italic">Sin movimientos registrados en esta jornada</p>';
+      } else {
+        tablaMovimientosHtml = movimientosDia.map(m => {
+          const tipo = (m.Tipo || m['Tipo Movimiento'] || '').toUpperCase();
+          const esEntrada = tipo === 'ENTRADA';
+          const badgeClass = esEntrada ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-blue-100 text-blue-800 border-blue-200';
+          const cantColor = esEntrada ? 'text-emerald-700' : 'text-blue-700';
+          const signo = esEntrada ? '+' : '-';
+          
+          const producto = m.Producto || m['Producto / Descripción'] || 'Artículo';
+          const unidad = m.Unidad || 'Unidad';
+          const cant = m.Cantidad || 0;
+          
+          // Trazabilidad clara: quién solicitó y quién recibió
+          const solicitaOEntrega = esEntrada 
+            ? (m.Trazabilidad ? m.Trazabilidad.replace('Entrega:', '').trim() : 'Proveedor')
+            : (m.Responsable || 'Dirección MAF');
+            
+          const recibe = esEntrada
+            ? (m.Responsable || 'Bodeguero')
+            : (m.Trazabilidad || 'Solicitante / Obra');
+
+          const ref = m['Documento Referencia'] || m.Referencia || m['No. Orden Despacho'] || '';
+
+          return `
+            <div class="p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white transition flex flex-col gap-1 text-[11px]">
+              <div class="flex justify-between items-center">
+                <div class="flex items-center gap-1.5">
+                  <span class="px-2 py-0.5 rounded text-[9px] font-black uppercase border ${badgeClass}">${tipo}</span>
+                  <span class="font-bold text-slate-900">${producto}</span>
+                  <span class="text-slate-400 font-medium">(${unidad})</span>
+                </div>
+                <span class="font-mono-code font-black text-xs ${cantColor}">${signo}${cant}</span>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-white p-1.5 rounded-lg border border-slate-100 mt-0.5">
+                <div>
+                  <span class="text-slate-400 font-bold uppercase block text-[8px]">${esEntrada ? 'Entregó / Transportó:' : 'Autorizó / Ordenó:'}</span>
+                  <strong class="text-slate-800">${solicitaOEntrega}</strong>
+                </div>
+                <div>
+                  <span class="text-slate-400 font-bold uppercase block text-[8px]">${esEntrada ? 'Recibió en Bodega:' : 'Retiró / Recibió:'}</span>
+                  <strong class="text-slate-800">${recibe}</strong>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      const cuerpo = document.getElementById('cierre-resumen-contenido');
+      cuerpo.innerHTML = `
+        <div class="grid grid-cols-2 gap-2 text-center my-2">
+          <div class="bg-blue-50 p-2.5 rounded-xl border border-blue-100">
+            <span class="block text-[10px] font-bold text-blue-600 uppercase">Ingresos Registrados</span>
+            <span class="text-base font-black text-blue-900">${totalIngresos}</span>
+            <span class="text-[9px] text-blue-500 block">bultos/unidades</span>
+          </div>
+          <div class="bg-amber-50 p-2.5 rounded-xl border border-amber-100">
+            <span class="block text-[10px] font-bold text-amber-600 uppercase">Despachos de Bodega</span>
+            <span class="text-base font-black text-amber-900">${totalSalidas}</span>
+            <span class="text-[9px] text-amber-500 block">bultos/unidades</span>
+          </div>
+        </div>
+
+        <!-- LISTA DETALLADA DE MOVIMIENTOS DEL DÍA -->
+        <div class="mt-3 pt-2 border-t border-slate-100">
+          <div class="flex justify-between items-center mb-2">
+            <h4 class="text-[11px] font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+              <i class="fa-solid fa-list-check text-blue-600"></i> Movimientos Detallados del Día
+            </h4>
+            <span class="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+              ${movimientosDia.length} registros
+            </span>
+          </div>
+          
+          <div class="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+            ${tablaMovimientosHtml}
+          </div>
+        </div>
+
+        <div class="space-y-1 pt-3 border-t border-slate-100 text-[11px]">
+          <div class="flex justify-between">
+            <span class="text-slate-500 font-bold">Total Órdenes Despachadas:</span>
+            <span class="font-extrabold text-slate-800">${despachosCount}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-500 font-bold">Líneas de Inventario Activas:</span>
+            <span class="font-extrabold text-slate-800">${estado.inventario.length}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-500 font-bold">Estado de Custodia:</span>
+            <span class="font-black text-emerald-600">Al Día & Sincronizado</span>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('modal-cierre').classList.remove('hidden');
     }
-    rows.push(rowObj);
-  }
-  return rows;
-}
 
-function jsonResponse(data) {
-  return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+        // Guardar Cierre Diario en la base de datos de Google Sheets
+    async function guardarCierreEnSheets() {
+      const btn = document.getElementById('btn-guardar-cierre-db');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Guardando...';
+      }
+
+      const now = new Date();
+      const idCierre = 'CIE-' + UtilitiesFechaCierre(now);
+      const fechaHora = formatearFechaLegible(now);
+      const fechaJornada = now.toISOString().slice(0, 10);
+      const movimientosDia = obtenerMovimientosDelDia();
+
+      let totalIngresos = 0;
+      let totalSalidas = 0;
+      let despachosCount = 0;
+
+      const itemsResumen = movimientosDia.map(m => {
+        const tipo = (m.Tipo || m['Tipo Movimiento'] || '').toUpperCase();
+        const cant = Number(m.Cantidad || 0);
+        const prod = m.Producto || m['Producto / Descripción'] || 'Art';
+        const uni = m.Unidad || 'Und';
+        if (tipo === 'ENTRADA') totalIngresos += cant;
+        if (tipo === 'SALIDA') { totalSalidas += cant; despachosCount++; }
+        
+        const deQuien = tipo === 'ENTRADA' ? (m.Trazabilidad || 'Proveedor') : (m.Responsable || 'Dirección');
+        const paraQuien = tipo === 'ENTRADA' ? (m.Responsable || 'Bodeguero') : (m.Trazabilidad || 'Cliente');
+        return `[${tipo}] ${cant} ${uni} ${prod} (De: ${deQuien} -> Para: ${paraQuien})`;
+      }).join(' | ');
+
+      try {
+        enviarComandoGoogleSheets({
+          action: 'guardarCierre',
+          idCierre: idCierre,
+          fechaHora: fechaHora,
+          fechaJornada: fechaJornada,
+          operador: estado.usuario || 'Operador',
+          totalIngresos: totalIngresos,
+          totalSalidas: totalSalidas,
+          totalOrdenes: despachosCount,
+          lineasActivas: estado.inventario.length,
+          detalleMovimientos: itemsResumen,
+          estado: 'Cuadrado'
+        });
+
+        if (btn) {
+          btn.innerHTML = '<i class="fa-solid fa-check mr-1"></i> Guardado en Base de Datos';
+          btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+          btn.classList.add('bg-emerald-600');
+        }
+        alert(`¡Cierre diario ${idCierre} registrado exitosamente en la base de datos de Google Sheets!`);
+      } catch (err) {
+        alert('Error al guardar el cierre. Verifique la conexión.');
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up mr-1"></i> Guardar en Base de Datos';
+        }
+      }
+    }
+
+    function UtilitiesFechaCierre(d) {
+      const Y = d.getFullYear();
+      const M = String(d.getMonth() + 1).padStart(2, '0');
+      const D = String(d.getDate()).padStart(2, '0');
+      const h = String(d.getHours()).padStart(2, '0');
+      const m = String(d.getMinutes()).padStart(2, '0');
+      return `${Y}${M}${D}-${h}${m}`;
+    }
+
+    // Exportación dedicada de Cierre Diario a Excel (.xlsx)
+    function exportarExcelCierreDiario() {
+      const now = new Date();
+      const fechaJornada = now.toISOString().slice(0, 10);
+      const movimientosDia = obtenerMovimientosDelDia();
+
+      let totalIngresos = 0;
+      let totalSalidas = 0;
+      let despachosCount = 0;
+
+      movimientosDia.forEach(m => {
+        const tipo = (m.Tipo || m['Tipo Movimiento'] || '').toUpperCase();
+        const cant = Number(m.Cantidad || 0);
+        if (tipo === 'ENTRADA') totalIngresos += cant;
+        if (tipo === 'SALIDA') { totalSalidas += cant; despachosCount++; }
+      });
+
+      // Hoja 1: Resumen de Cierre
+      const datosResumen = [
+        { 'Parámetro de Cierre': 'Empresa / Centro de Acopio', 'Valor': 'BODEGA MAF - Inírida, Guainía' },
+        { 'Parámetro de Cierre': 'Fecha de Jornada', 'Valor': fechaJornada },
+        { 'Parámetro de Cierre': 'Fecha y Hora de Emisión', 'Valor': now.toLocaleString('es-CO') },
+        { 'Parámetro de Cierre': 'Operador / Responsable', 'Valor': estado.usuario || 'Operador' },
+        { 'Parámetro de Cierre': 'Total Ingresos del Día (Bultos/Unidades)', 'Valor': totalIngresos },
+        { 'Parámetro de Cierre': 'Total Despachos del Día (Bultos/Unidades)', 'Valor': totalSalidas },
+        { 'Parámetro de Cierre': 'Total Órdenes Despachadas', 'Valor': despachosCount },
+        { 'Parámetro de Cierre': 'Total Referencias Activas en Bodega', 'Valor': estado.inventario.length },
+        { 'Parámetro de Cierre': 'Destinatario de Auditoría', 'Valor': 'Don Miguel Ángel Forero' },
+        { 'Parámetro de Cierre': 'Estado de Jornada', 'Valor': 'Cuadrado & Conciliado' }
+      ];
+
+      // Hoja 2: Detalle de Movimientos
+      const datosDetalle = movimientosDia.map((m, i) => {
+        const tipo = (m.Tipo || m['Tipo Movimiento'] || '').toUpperCase();
+        const esEntrada = tipo === 'ENTRADA';
+        const producto = m.Producto || m['Producto / Descripción'] || '';
+        const unidad = m.Unidad || '';
+        const cantidad = m.Cantidad || 0;
+        const solicitaOEntrega = esEntrada 
+          ? (m.Trazabilidad ? m.Trazabilidad.replace('Entrega:', '').trim() : 'Proveedor')
+          : (m.Responsable || 'Dirección MAF');
+        const recibe = esEntrada 
+          ? (m.Responsable || 'Bodeguero')
+          : (m.Trazabilidad || 'Solicitante / Obra');
+        const ref = m['Documento Referencia'] || m.Referencia || m['No. Orden Despacho'] || '';
+
+        return {
+          'No.': i + 1,
+          'Hora / Fecha': formatearFechaLegible(m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho']),
+          'Referencia': ref,
+          'Tipo de Operación': tipo,
+          'Producto': producto,
+          'Unidad': unidad,
+          'Cantidad': cantidad,
+          'Quién Solicitó / Entregó': solicitaOEntrega,
+          'Quién Recibió / Retiró': recibe
+        };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const wsResumen = XLSX.utils.json_to_sheet(datosResumen);
+      const wsDetalle = XLSX.utils.json_to_sheet(datosDetalle);
+
+      XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen_Cierre');
+      XLSX.utils.book_append_sheet(wb, wsDetalle, 'Movimientos_Jornada');
+
+      XLSX.writeFile(wb, `BODEGA_MAF_Cierre_Diario_${fechaJornada}.xlsx`);
+    }
+
+    function cerrarModalCierre() {
+      document.getElementById('modal-cierre').classList.add('hidden');
+    }
+
+    function descargarImagenCierrePNG() {
+      const elemento = document.getElementById('cuadro-cierre-imagen');
+      html2canvas(elemento, { scale: 2 }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `Cierre_Diario_Bodega_MAF_${new Date().toISOString().slice(0,10)}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    }
+
+    function imprimirCierreEnPOS() {
+      const area = document.getElementById('area-impresion-pos');
+      const fecha = new Date().toLocaleString();
+      const movimientosDia = obtenerMovimientosDelDia();
+
+      let totalIngresos = 0;
+      let totalSalidas = 0;
+
+      movimientosDia.forEach(m => {
+        const tipo = (m.Tipo || m['Tipo Movimiento'] || '').toUpperCase();
+        const cant = Number(m.Cantidad || 0);
+        if (tipo === 'ENTRADA') totalIngresos += cant;
+        if (tipo === 'SALIDA') totalSalidas += cant;
+      });
+
+      // Detalle para ticket térmico
+      let itemsTicketPOS = movimientosDia.map(m => {
+        const tipo = (m.Tipo || m['Tipo Movimiento'] || '').toUpperCase();
+        const esEntrada = tipo === 'ENTRADA';
+        const producto = m.Producto || m['Producto / Descripción'] || 'Art';
+        const unidad = m.Unidad || 'Und';
+        const cant = m.Cantidad || 0;
+        const solicita = esEntrada ? (m.Trazabilidad || 'Proveedor') : (m.Responsable || 'Dirección');
+        const recibe = esEntrada ? (m.Responsable || 'Bodeguero') : (m.Trazabilidad || 'Cliente');
+
+        return `
+          <div style="margin-bottom: 5px; padding-bottom: 3px; border-bottom: 1px dotted #ccc;">
+            <div style="display:flex; justify-content:space-between; font-weight:bold;">
+              <span>[${tipo}] ${producto}</span>
+              <span>${cant} ${unidad}</span>
+            </div>
+            <div style="font-size: 9px; color: #333;">
+              <div>${esEntrada ? 'Entrega:' : 'Autoriza:'} ${solicita}</div>
+              <div>${esEntrada ? 'Recibe:' : 'Retira:'} ${recibe}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      area.innerHTML = `
+        <div style="text-align:center; font-weight:bold; font-size:13px;">BODEGA MAF</div>
+        <div style="text-align:center; font-size:10px;">CIERRE DE JORNADA LOGÍSTICA</div>
+        <div style="text-align:center; font-size:9px;">Inírida, Guainía</div>
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="font-size:10px;"><strong>Fecha:</strong> ${fecha}</div>
+        <div style="font-size:10px;"><strong>Responsable:</strong> ${estado.usuario || 'Operador'}</div>
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:2px;">
+          <span>TOTAL INGRESOS:</span>
+          <strong>${totalIngresos}</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+          <span>TOTAL DESPACHOS:</span>
+          <strong>${totalSalidas}</strong>
+        </div>
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="font-weight:bold; font-size:10px; margin-bottom: 4px; text-align:center;">DETALLE DE MOVIMIENTOS</div>
+        ${itemsTicketPOS || '<div style="font-size:9px; text-align:center;">Sin movimientos</div>'}
+        <hr style="border-top:1px dashed #000; margin: 6px 0;">
+        <br><br>
+        <div style="text-align:center; font-size:9px;">___________________________<br>Firma Responsable Bodega</div>
+      `;
+
+      window.print();
+    }
+
+    function guardarInventarioLocal() {
+      localStorage.setItem('maf_inventario', JSON.stringify(estado.inventario));
+    }
+    function guardarMovimientosLocal() {
+      localStorage.setItem('maf_movimientos', JSON.stringify(estado.movimientos));
+    }
+    function guardarContactosLocal() {
+      localStorage.setItem('maf_contactos', JSON.stringify(estado.contactos));
+    }
+  </script>
+</body>
+</html>
