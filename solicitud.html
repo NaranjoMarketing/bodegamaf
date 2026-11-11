@@ -340,25 +340,27 @@
 
       // Enviar orden a Google Sheets (Hoja PEDIDOS_EMPRESA)
       try {
+        const payload = {
+          action: 'guardarPedidoEmpresa',
+          idPedido: idPedido,
+          fechaHora: fechaHoraLegible,
+          empresa: empresa,
+          reclama: reclama,
+          autoriza: nombreAutoriza,
+          productos: resumenProductos,
+          destino: destino + (notas ? ' | ' + notas : ''),
+          estado: 'Pendiente',
+          items: items
+        };
+
+        // Enviar sin cabecera application/json para compatibilidad total con navegadores móviles (Chrome/Safari)
         await fetch(SCRIPT_URL, {
           method: 'POST',
           mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'guardarPedidoEmpresa',
-            idPedido: idPedido,
-            fechaHora: fechaHoraLegible,
-            empresa: empresa,
-            reclama: reclama,
-            autoriza: nombreAutoriza,
-            productos: resumenProductos,
-            destino: destino + (notas ? ' | ' + notas : ''),
-            estado: 'Pendiente',
-            items: items
-          })
+          body: JSON.stringify(payload)
         });
       } catch (err) {
-        console.warn('Orden enviada:', err);
+        console.error('Error enviando a Sheets:', err);
       }
 
       cerrarModalPin();
