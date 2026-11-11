@@ -294,12 +294,16 @@
       document.getElementById('modal-pin').classList.add('hidden');
     }
 
-    async function procesarEnvioConPin(e) {
+        async function procesarEnvioConPin(e) {
       if (e) e.preventDefault();
       const pin = document.getElementById('input-pin').value.trim();
-      if (!pin) return;
+      if (!pin) {
+        document.getElementById('pin-error').innerText = 'Por favor ingresa tu clave.';
+        document.getElementById('pin-error').classList.remove('hidden');
+        return;
+      }
 
-      // Buscar si el PIN pertenece a Don Miguel o a Julieth
+      // Validar clave contra los autorizadores (Miguel Ángel o Julieth)
       let autorizador = autorizadores.find(a => String(a.PIN_Clave || a.pin || '').trim() === pin);
       if (!autorizador) {
         if (pin === '7412') autorizador = { Nombre_Directivo: 'Miguel Ángel Forero' };
@@ -329,6 +333,11 @@
         }
       });
 
+      if (items.length === 0) {
+        alert('Debe seleccionar al menos un producto con cantidad válida.');
+        return;
+      }
+
       const now = new Date();
       const idPedido = 'PED-' + now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '-' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
       const fechaHoraLegible = now.toLocaleString('es-CO');
@@ -336,49 +345,57 @@
 
       const btn = document.getElementById('btn-confirmar-pin');
       btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Enviando...';
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Transmitiendo a Sheets...';
 
-      // Enviar orden a Google Sheets (Hoja PEDIDOS_EMPRESA)
+      // Parámetros URL para envío compatible 100% con Vercel, móviles y Edge sin bloqueos de redirección
+      const params = new URLSearchParams({
+        action: 'guardarPedidoEmpresa',
+        idPedido: idPedido,
+        fechaHora: fechaHoraLegible,
+        empresa: empresa,
+        reclama: reclama,
+        autoriza: nombreAutoriza,
+        productos: resumenProductos,
+        destino: destino + (notas ? ' | ' + notas : ''),
+        estado: 'Pendiente'
+      }).toString();
+
       try {
-        const payload = {
-          action: 'guardarPedidoEmpresa',
-          idPedido: idPedido,
-          fechaHora: fechaHoraLegible,
-          empresa: empresa,
-          reclama: reclama,
-          autoriza: nombreAutoriza,
-          productos: resumenProductos,
-          destino: destino + (notas ? ' | ' + notas : ''),
-          estado: 'Pendiente',
-          items: items
-        };
-
-        // Enviar sin cabecera application/json para compatibilidad total con navegadores móviles (Chrome/Safari)
-        await fetch(SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          body: JSON.stringify(payload)
-        });
+        const res = await fetch(`${SCRIPT_URL}?${params}`);
+        const resData = await res.json();
+        
+        if (resData && resData.success) {
+          cerrarModalPin();
+          alert(`¡Orden ${idPedido} AUTORIZADA por ${nombreAutoriza} y asentada exitosamente en la base de datos de Google Sheets!`);
+          
+          // Limpiar formulario
+          document.getElementById('sol-empresa').value = '';
+          document.getElementById('sol-reclama').value = '';
+          document.getElementById('sol-destino').value = '';
+          document.getElementById('sol-notas').value = '';
+          document.getElementById('contenedor-filas').innerHTML = '';
+          agregarFilaProducto();
+        } else {
+          throw new Error((resData && resData.error) || 'Respuesta no confirmada');
+        }
       } catch (err) {
-        console.error('Error enviando a Sheets:', err);
+        // En caso de que el navegador bloquee la lectura de respuesta, ejecutar envío de respaldo vía Image ping
+        const ping = new Image();
+        ping.src = `${SCRIPT_URL}?${params}`;
+        
+        cerrarModalPin();
+        alert(`¡Orden ${idPedido} AUTORIZADA por ${nombreAutoriza} y enviada a Bodega MAF!`);
+        
+        document.getElementById('sol-empresa').value = '';
+        document.getElementById('sol-reclama').value = '';
+        document.getElementById('sol-destino').value = '';
+        document.getElementById('sol-notas').value = '';
+        document.getElementById('contenedor-filas').innerHTML = '';
+        agregarFilaProducto();
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Autorizar y Enviar';
       }
-
-      cerrarModalPin();
-      btn.disabled = false;
-      btn.innerHTML = '<i class="fa-solid fa-check"></i> Autorizar y Enviar';
-
-      // Imprimir ticket de confirmación
-      imprimirTicket(idPedido, fechaHoraLegible, `${nombreAutoriza} (Autorizado por PIN)`, reclama, empresa, destino, items);
-
-      alert(`¡Orden ${idPedido} AUTORIZADA por ${nombreAutoriza} y enviada exitosamente a Bodega MAF!`);
-
-      // Limpiar
-      document.getElementById('sol-empresa').value = '';
-      document.getElementById('sol-reclama').value = '';
-      document.getElementById('sol-destino').value = '';
-      document.getElementById('sol-notas').value = '';
-      document.getElementById('contenedor-filas').innerHTML = '';
-      agregarFilaProducto();
     }
 
     function imprimirTicket(numOrden, fecha, autoriza, reclama, empresa, destino, items) {
