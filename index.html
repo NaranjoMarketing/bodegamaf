@@ -1036,13 +1036,11 @@
       }
     }
 
-    async function enviarComandoGoogleSheets(payload) {
+        async function enviarComandoGoogleSheets(payload) {
       try {
-        await fetch(SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          body: JSON.stringify(payload)
-        });
+        // Enviar por parámetro GET para máxima compatibilidad con Vercel y redirecciones de Google Apps Script
+        const params = new URLSearchParams(payload).toString();
+        await fetch(`${SCRIPT_URL}?${params}`);
       } catch (e) {
         console.error('Error al sincronizar con Sheets:', e);
       }
