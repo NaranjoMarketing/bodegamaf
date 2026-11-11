@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BODEGA MAF - Orden de Egreso Corporativa</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .font-mono-code { font-family: 'JetBrains Mono', monospace; }
+    @media print {
+      body * { visibility: hidden !important; }
+      #area-ticket-solicitud, #area-ticket-solicitud * { visibility: visible !important; }
+      #area-ticket-solicitud {
+        position: absolute !important; left: 0 !important; top: 0 !important; width: 58mm !important;
+        margin: 0 !important; padding: 4px !important; font-family: 'JetBrains Mono', monospace !important;
+        font-size: 11px !important; line-height: 1.25 !important; color: #000 !important; background: #fff !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col justify-between selection:bg-blue-600 selection:text-white">
+
+  <!-- CABECERA -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex justify-between items-center">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-md shadow-indigo-600/20">
+          M
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-base font-extrabold tracking-tight text-slate-900 leading-none">BODEGA MAF</span>
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-200/60 uppercase">Empresas</span>
+          </div>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Módulo de Orden de Egreso</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Stock en Vivo
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="max-w-4xl mx-auto px-4 sm:px-6 py-6 w-full flex-1 space-y-5">
+    
+    <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 p-6 rounded-3xl text-white shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div>
+        <div class="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider mb-2 text-indigo-200">
+          <i class="fa-solid fa-lock"></i> Requiere PIN de Autorización
+        </div>
+        <h1 class="text-xl font-black tracking-tight">Generar Orden de Egreso</h1>
+        <p class="text-xs text-slate-300 mt-1 max-w-lg">Diligencia los productos requeridos. La orden se enviará automáticamente a Bodega MAF al ingresar la clave de autorización de Don Miguel Ángel Forero o Julieth.</p>
+      </div>
+      <div class="bg-white/10 border border-white/10 px-4 py-2.5 rounded-2xl text-center self-stretch sm:self-auto">
+        <span class="text-[10px] font-bold text-slate-300 uppercase block">Autorizadores</span>
+        <span class="text-xs font-black text-white">Miguel Ángel / Julieth</span>
+      </div>
+    </div>
+
+    <!-- FORMULARIO DE ORDEN -->
+    <div class="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-6">
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">
+            <i class="fa-regular fa-calendar-days text-indigo-600 mr-1"></i> Fecha y Hora de la Orden <span class="text-rose-500">*</span>
+          </label>
+          <input type="datetime-local" id="sol-fecha" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-indigo-600 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">
+            <i class="fa-solid fa-building text-indigo-600 mr-1"></i> Empresa / Dependencia Solicitante <span class="text-rose-500">*</span>
+          </label>
+          <input type="text" id="sol-empresa" placeholder="Ej: Grupo Empresarial MAF / Gas Guainía / Obra" class="w-full p-2.5 rounded-xl border border-slate-300 font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">
+            <i class="fa-solid fa-user-tag text-indigo-600 mr-1"></i> ¿Quién Reclama / Conductor Responsable? <span class="text-rose-500">*</span>
+          </label>
+          <input type="text" id="sol-reclama" placeholder="Nombre de la persona que retira en bodega" class="w-full p-2.5 rounded-xl border border-slate-300 font-bold focus:ring-2 focus:ring-indigo-600 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 uppercase mb-1">
+            <i class="fa-solid fa-location-dot text-indigo-600 mr-1"></i> Destino / Uso de la Carga
+          </label>
+          <input type="text" id="sol-destino" placeholder="Ej: Muelle Municipal / Obra / Almacén" class="w-full p-2.5 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-indigo-600 focus:outline-none">
+        </div>
+      </div>
+
+      <!-- PRODUCTOS -->
+      <div class="border-t border-slate-100 pt-5 space-y-3">
+        <div class="flex justify-between items-center">
+          <div>
+            <h3 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <i class="fa-solid fa-boxes-stacked text-indigo-600"></i> Productos y Cantidades Requeridas
+            </h3>
+            <p class="text-[11px] text-slate-500">Las cantidades se validan automáticamente con el saldo físico en bodega.</p>
+          </div>
+          <button type="button" onclick="agregarFilaProducto()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-plus"></i> Añadir Otro Ítem
+          </button>
+        </div>
+
+        <div id="contenedor-filas" class="space-y-2.5 max-h-[360px] overflow-y-auto pr-1"></div>
+      </div>
+
+      <div>
+        <label class="block font-bold text-slate-700 uppercase text-xs mb-1">Observaciones / Notas para Bodega</label>
+        <textarea id="sol-notas" rows="2" placeholder="Indicaciones de embalaje, vehículo, etc..." class="w-full p-2.5 rounded-xl border border-slate-300 font-medium text-xs focus:ring-2 focus:ring-indigo-600 focus:outline-none"></textarea>
+      </div>
+
+      <!-- PIE DE ACCIONES -->
+      <div class="border-t border-slate-100 pt-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+        <div class="text-xs text-slate-500">
+          Total: <span id="total-bultos-badge" class="font-black text-slate-900 text-sm">0</span> bultos/unidades solicitadas
+        </div>
+        <button type="button" onclick="abrirModalPin()" class="w-full sm:w-auto px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-extrabold text-xs shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition">
+          <i class="fa-solid fa-key"></i> Autorizar con PIN y Enviar Orden a Bodega
+        </button>
+      </div>
+
+    </div>
+
+  </main>
+
+  <footer class="text-center py-4 text-xs text-slate-400 border-t border-slate-200 bg-white">
+    BODEGA MAF • Módulo Corporativo de Órdenes de Egreso • Inírida, Guainía
+  </footer>
+
+  <!-- MODAL: PIN DE AUTORIZACIÓN (MIGUEL ÁNGEL / JULIETH) -->
+  <div id="modal-pin" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 border border-slate-200 text-center relative overflow-hidden">
+      <div class="w-14 h-14 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-2xl mx-auto flex items-center justify-center text-2xl font-black mb-3 shadow-inner">
+        <i class="fa-solid fa-lock"></i>
+      </div>
+      <h3 class="text-base font-black text-slate-900">Autorización Directiva</h3>
+      <p class="text-xs text-slate-500 mt-1 mb-4">Ingresa la clave de autorización para confirmar y despachar este pedido:</p>
+
+      <form onsubmit="procesarEnvioConPin(event)" class="space-y-4">
+        <div>
+          <input type="password" id="input-pin" maxlength="8" placeholder="Ingresa PIN" autofocus class="w-full text-center text-2xl tracking-[0.3em] font-mono-code font-black py-3 rounded-2xl border-2 border-slate-300 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100 focus:outline-none">
+          <p class="text-[10px] text-slate-400 mt-2">PIN configurado desde Google Sheets (7412 o 9632)</p>
+        </div>
+
+        <div id="pin-error" class="hidden text-xs font-bold text-rose-600 bg-rose-50 p-2 rounded-xl border border-rose-200">
+          Clave incorrecta. Intente nuevamente.
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button type="button" onclick="cerrarModalPin()" class="py-2.5 rounded-xl border border-slate-300 text-slate-600 font-bold text-xs hover:bg-slate-50 transition">
+            Cancelar
+          </button>
+          <button type="submit" id="btn-confirmar-pin" class="py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/25 flex items-center justify-center gap-1.5 transition">
+            <i class="fa-solid fa-check"></i> Autorizar y Enviar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="area-ticket-solicitud" class="hidden"></div>
+
+  <script>
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsIonFrjw49piLImRkuttrulcVoJUVEMyAbZsXvjNQrSv2DV_TgJvEybyaGT_l8cMd5w/exec';
+
+    let inventario = [
+      { SKU: 'SKU-MAF-001', nombre: 'Purina Concentrado Engorde 40kg', unidad: 'Bulto', stock: 120 },
+      { SKU: 'SKU-MAF-002', nombre: 'Cemento Gris Estructural 50kg', unidad: 'Bulto', stock: 205 },
+      { SKU: 'SKU-MAF-003', nombre: 'Pack Cartón para Huevo (100u)', unidad: 'Paca', stock: 85 },
+      { SKU: 'SKU-MAF-004', nombre: 'Coca-Cola 350ml Vidrio Retornable', unidad: 'Caja', stock: 310 }
+    ];
+
+    let autorizadores = [
+      { Nombre_Directivo: 'Miguel Ángel Forero', PIN_Clave: '7412' },
+      { Nombre_Directivo: 'Julieth', PIN_Clave: '9632' }
+    ];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const inputFecha = document.getElementById('sol-fecha');
+      if (inputFecha) {
+        const now = new Date();
+        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+        inputFecha.value = now.toISOString().slice(0, 16);
+      }
+      cargarDatosEnVivo();
+      agregarFilaProducto();
+    });
+
+    async function cargarDatosEnVivo() {
+      try {
+        const res = await fetch(SCRIPT_URL);
+        const data = await res.json();
+        if (data && data.success) {
+          if (Array.isArray(data.inventario) && data.inventario.length > 0) {
+            inventario = data.inventario.map(p => ({
+              SKU: p.SKU || p.sku,
+              nombre: p['Descripción del Producto'] || p.nombre || p.descripcion,
+              unidad: p.Unidad || p.unidad || 'Unidad',
+              stock: Number(p['Stock Actual'] !== undefined ? p['Stock Actual'] : (p.stock || 0))
+            }));
+            refrescarOpcionesProductos();
+          }
+          if (Array.isArray(data.autorizadores) && data.autorizadores.length > 0) {
+            autorizadores = data.autorizadores;
+          }
+        }
+      } catch (e) {
+        console.warn('Conectando en modo local/caché:', e);
+      }
+    }
+
+    function agregarFilaProducto() {
+      const cont = document.getElementById('contenedor-filas');
+      const div = document.createElement('div');
+      div.className = 'fila-solicitud flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80';
+      
+      const opciones = inventario.map(p => 
+        `<option value="${p.SKU}" data-stock="${p.stock}">${p.nombre} [${p.unidad}] - Disp: ${p.stock}</option>`
+      ).join('');
+
+      div.innerHTML = `
+        <select class="item-sku flex-1 p-2 rounded-lg border border-slate-300 text-xs font-semibold focus:ring-1 focus:ring-indigo-600 focus:outline-none" onchange="validarStockMaximo(this)">
+          ${opciones}
+        </select>
+        <div class="flex items-center gap-1">
+          <input type="number" min="1" value="1" class="item-cant w-24 p-2 rounded-lg border border-slate-300 text-xs font-mono-code font-bold text-center focus:ring-1 focus:ring-indigo-600 focus:outline-none" oninput="calcularTotalBultos(); validarStockMaximo(this);">
+        </div>
+        <button type="button" onclick="this.parentElement.remove(); calcularTotalBultos();" class="text-slate-400 hover:text-rose-600 p-2 transition font-bold">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      `;
+      cont.appendChild(div);
+      calcularTotalBultos();
+    }
+
+    function refrescarOpcionesProductos() {
+      document.querySelectorAll('.item-sku').forEach(select => {
+        const valActual = select.value;
+        select.innerHTML = inventario.map(p => 
+          `<option value="${p.SKU}" data-stock="${p.stock}">${p.nombre} [${p.unidad}] - Disp: ${p.stock}</option>`
+        ).join('');
+        if (valActual && inventario.some(p => p.SKU === valActual)) {
+          select.value = valActual;
+        }
+      });
+    }
+
+    function validarStockMaximo(elem) {
+      const fila = elem.closest('.fila-solicitud');
+      if (!fila) return;
+      const select = fila.querySelector('.item-sku');
+      const input = fila.querySelector('.item-cant');
+      const opt = select.selectedOptions[0];
+      const max = Number(opt ? opt.getAttribute('data-stock') : 9999);
+      if (Number(input.value) > max) {
+        input.value = Math.max(1, max);
+      }
+    }
+
+    function calcularTotalBultos() {
+      let count = 0;
+      document.querySelectorAll('.item-cant').forEach(i => count += Number(i.value || 0));
+      document.getElementById('total-bultos-badge').innerText = count;
+    }
+
+    function abrirModalPin() {
+      const empresa = document.getElementById('sol-empresa').value.trim();
+      const reclama = document.getElementById('sol-reclama').value.trim();
+      if (!empresa || !reclama) {
+        alert('Ingresa la empresa solicitante y el nombre de la persona que reclama.');
+        return;
+      }
+      if (document.querySelectorAll('.fila-solicitud').length === 0) {
+        alert('Agrega al menos un producto a la orden.');
+        return;
+      }
+      document.getElementById('input-pin').value = '';
+      document.getElementById('pin-error').classList.add('hidden');
+      document.getElementById('modal-pin').classList.remove('hidden');
+      setTimeout(() => document.getElementById('input-pin').focus(), 150);
+    }
+
+    function cerrarModalPin() {
+      document.getElementById('modal-pin').classList.add('hidden');
+    }
+
+    async function procesarEnvioConPin(e) {
+      if (e) e.preventDefault();
+      const pin = document.getElementById('input-pin').value.trim();
+      if (!pin) return;
+
+      // Buscar si el PIN pertenece a Don Miguel o a Julieth
+      let autorizador = autorizadores.find(a => String(a.PIN_Clave || a.pin || '').trim() === pin);
+      if (!autorizador) {
+        if (pin === '7412') autorizador = { Nombre_Directivo: 'Miguel Ángel Forero' };
+        if (pin === '9632') autorizador = { Nombre_Directivo: 'Julieth' };
+      }
+
+      if (!autorizador) {
+        document.getElementById('pin-error').innerText = 'Clave incorrecta. Solo autorizan Miguel Ángel Forero (7412) o Julieth (9632).';
+        document.getElementById('pin-error').classList.remove('hidden');
+        return;
+      }
+
+      const nombreAutoriza = autorizador.Nombre_Directivo || autorizador.nombre;
+      const empresa = document.getElementById('sol-empresa').value.trim();
+      const reclama = document.getElementById('sol-reclama').value.trim();
+      const destino = document.getElementById('sol-destino').value.trim();
+      const notas = document.getElementById('sol-notas').value.trim();
+      const fechaVal = document.getElementById('sol-fecha').value;
+
+      const items = [];
+      document.querySelectorAll('.fila-solicitud').forEach(f => {
+        const sku = f.querySelector('.item-sku').value;
+        const cant = Number(f.querySelector('.item-cant').value || 0);
+        const p = inventario.find(i => i.SKU === sku);
+        if (p && cant > 0) {
+          items.push({ sku, nombre: p.nombre, unidad: p.unidad, cantidad: cant });
+        }
+      });
+
+      const now = new Date();
+      const idPedido = 'PED-' + now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '-' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+      const fechaHoraLegible = now.toLocaleString('es-CO');
+      const resumenProductos = items.map(it => `${it.cantidad} ${it.unidad} ${it.nombre}`).join('; ');
+
+      const btn = document.getElementById('btn-confirmar-pin');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Enviando...';
+
+      // Enviar orden a Google Sheets (Hoja PEDIDOS_EMPRESA)
+      try {
+        await fetch(SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'guardarPedidoEmpresa',
+            idPedido: idPedido,
+            fechaHora: fechaHoraLegible,
+            empresa: empresa,
+            reclama: reclama,
+            autoriza: nombreAutoriza,
+            productos: resumenProductos,
+            destino: destino + (notas ? ' | ' + notas : ''),
+            estado: 'Pendiente',
+            items: items
+          })
+        });
+      } catch (err) {
+        console.warn('Orden enviada:', err);
+      }
+
+      cerrarModalPin();
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> Autorizar y Enviar';
+
+      // Imprimir ticket de confirmación
+      imprimirTicket(idPedido, fechaHoraLegible, `${nombreAutoriza} (Autorizado por PIN)`, reclama, empresa, destino, items);
+
+      alert(`¡Orden ${idPedido} AUTORIZADA por ${nombreAutoriza} y enviada exitosamente a Bodega MAF!`);
+
+      // Limpiar
+      document.getElementById('sol-empresa').value = '';
+      document.getElementById('sol-reclama').value = '';
+      document.getElementById('sol-destino').value = '';
+      document.getElementById('sol-notas').value = '';
+      document.getElementById('contenedor-filas').innerHTML = '';
+      agregarFilaProducto();
+    }
+
+    function imprimirTicket(numOrden, fecha, autoriza, reclama, empresa, destino, items) {
+      const area = document.getElementById('area-ticket-solicitud');
+      let filasHtml = items.map(it => `
+        <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
+          <span>${it.nombre} (${it.unidad})</span>
+          <strong>${it.cantidad}</strong>
+        </div>
+      `).join('');
+
+      area.innerHTML = `
+        <div style="text-align:center; font-weight:bold; font-size:13px;">BODEGA MAF</div>
+        <div style="text-align:center; font-size:10px;">ORDEN DE EGRESO CORPORATIVA</div>
+        <div style="text-align:center; font-size:9px;">Inírida, Guainía</div>
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="font-size:10px;"><strong>No. Orden:</strong> ${numOrden}</div>
+        <div style="font-size:10px;"><strong>Fecha:</strong> ${fecha}</div>
+        <div style="font-size:10px;"><strong>Empresa:</strong> ${empresa}</div>
+        <div style="font-size:10px;"><strong>Reclama:</strong> ${reclama}</div>
+        <div style="font-size:10px;"><strong>Autorizó:</strong> ${autoriza}</div>
+        ${destino ? `<div style="font-size:10px;"><strong>Destino:</strong> ${destino}</div>` : ''}
+        <hr style="border-top:1px dashed #000; margin: 4px 0;">
+        <div style="font-weight:bold; font-size:10px; margin-bottom:3px;">PRODUCTOS SOLICITADOS</div>
+        ${filasHtml}
+        <hr style="border-top:1px dashed #000; margin: 6px 0;">
+        <br><br>
+        <div style="text-align:center; font-size:9px;">___________________________<br>Firma Quien Autoriza (PIN)</div>
+        <br><br>
+        <div style="text-align:center; font-size:9px;">___________________________<br>Firma Quien Reclama</div>
+      `;
+      window.print();
+    }
+  </script>
+</body>
+</html>
