@@ -4,39 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BODEGA MAF - Sistema WMS Logístico</title>
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-  <!-- SheetJS para Excel (.xlsx) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <!-- html2canvas para descargar imágenes de comprobantes y cierres -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .font-mono-code { font-family: 'JetBrains Mono', monospace; }
 
-    body {
-      font-family: 'Plus Jakarta Sans', sans-serif;
-    }
+    #area-impresion-pos { display: none; }
 
-    .font-mono-code {
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    /* Oculto en pantalla normal */
-    #area-impresion-pos {
-      display: none;
-    }
-
-    /* Reglas para impresión térmica POS (58mm / 80mm) */
     @media print {
-      body * {
-        visibility: hidden !important;
-      }
-      #area-impresion-pos, #area-impresion-pos * {
-        visibility: visible !important;
-      }
+      body * { visibility: hidden !important; }
+      #area-impresion-pos, #area-impresion-pos * { visibility: visible !important; }
       #area-impresion-pos {
         display: block !important;
         position: absolute !important;
@@ -52,23 +34,14 @@
         background: #fff !important;
       }
     }
-
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #f1f5f9;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col selection:bg-blue-600 selection:text-white">
 
-  <!-- ==================== MODAL DE AUTENTICACIÓN / SESIÓN ==================== -->
+  <!-- MODAL DE AUTENTICACIÓN / SESIÓN -->
   <div id="modal-login" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-all duration-300">
     <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-8 border border-slate-200 text-center relative overflow-hidden">
       <div class="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-600 via-indigo-600 to-sky-500"></div>
@@ -101,7 +74,7 @@
     </div>
   </div>
 
-  <!-- ==================== ENCABEZADO / NAVBAR ==================== -->
+  <!-- ENCABEZADO / NAVBAR -->
   <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center h-16">
@@ -136,7 +109,6 @@
             <i class="fa-solid fa-inbox text-indigo-600"></i> Pedidos Recibidos
             <span id="badge-pedidos-pendientes" class="hidden px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white animate-pulse">0</span>
           </button>
-
           <button onclick="cambiarPestana('contactos')" id="tab-btn-contactos" class="btn-tab px-3.5 py-2 rounded-xl text-slate-600 hover:text-blue-600 transition flex items-center gap-2">
             <i class="fa-solid fa-address-book"></i> Contactos
           </button>
@@ -164,10 +136,10 @@
     </div>
   </header>
 
-  <!-- ==================== CONTENEDOR PRINCIPAL ==================== -->
+  <!-- CONTENEDOR PRINCIPAL -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full">
 
-    <!-- 1. PESTAÑA: ENTRADA DE MERCANCÍA (FLEXIBLE: EXISTENTES O NUEVOS) -->
+    <!-- 1. ENTRADA DE MERCANCÍA -->
     <section id="vista-llegada" class="vista-seccion hidden space-y-4">
       <div class="max-w-4xl mx-auto bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-5">
         <div class="border-b border-slate-100 pb-3 flex items-center justify-between">
@@ -175,7 +147,7 @@
             <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
               <i class="fa-solid fa-dolly text-blue-600"></i> Entrada de Mercancía a Bodega
             </h2>
-            <p class="text-xs text-slate-500">Ingresa la carga recibida. Puedes seleccionar un artículo del catálogo o escribir uno nuevo directamente.</p>
+            <p class="text-xs text-slate-500">Ingresa la fecha, quién entrega, quién recibe y los productos con sus cantidades.</p>
           </div>
           <span class="text-xs font-mono-code bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg font-bold border border-emerald-200">
             Ingreso Directo
@@ -191,15 +163,15 @@
           </div>
           <div>
             <label class="block font-bold text-slate-700 uppercase mb-1">
-              <i class="fa-solid fa-truck text-blue-600 mr-1"></i> ¿Quién Entrega? (Transportador) <span class="text-rose-500">*</span>
+              <i class="fa-solid fa-truck text-blue-600 mr-1"></i> ¿Quién Entrega? <span class="text-rose-500">*</span>
             </label>
-            <input type="text" id="entrada-entrega" placeholder="Ej: Conductor Pedro / Patrón Don Rafa" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            <input type="text" id="entrada-entrega" placeholder="Ej: Conductor Pedro / Barco Don Rafa" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
           </div>
           <div>
             <label class="block font-bold text-slate-700 uppercase mb-1">
               <i class="fa-solid fa-user-check text-blue-600 mr-1"></i> ¿Quién Recibe en Bodega? <span class="text-rose-500">*</span>
             </label>
-            <input type="text" id="entrada-recibe" placeholder="Nombre del receptor" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+            <input type="text" id="entrada-recibe" placeholder="Nombre del receptor en bodega" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
           </div>
         </div>
 
@@ -208,6 +180,7 @@
           <input type="text" id="entrada-detalle-opcional" placeholder="Ej: Lancha Rápida / Bongo / Llegada Mañana" class="w-full p-2 rounded-xl border border-slate-200 font-medium text-slate-700 focus:ring-1 focus:ring-blue-600 focus:outline-none">
         </div>
 
+        <!-- Canasta de Productos a Ingresar -->
         <div class="border-t border-slate-100 pt-4 space-y-3">
           <div class="flex justify-between items-center">
             <h3 class="text-xs font-black text-slate-800 uppercase tracking-wider">Productos y Cantidades a Ingresar</h3>
@@ -227,7 +200,7 @@
       </div>
     </section>
 
-    <!-- 2. PESTAÑA: DESPACHO / SALIDAS POS -->
+    <!-- 2. DESPACHO (SALIDA) -->
     <section id="vista-despacho" class="vista-seccion space-y-4">
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div class="lg:col-span-4 bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
@@ -241,7 +214,7 @@
           <div class="space-y-3 text-xs">
             <div>
               <label class="block font-bold text-slate-700 uppercase mb-1">¿Quién autoriza la salida? <span class="text-rose-500">*</span></label>
-              <input type="text" id="despacho-autoriza" list="lista-autorizan" placeholder="Ej: Don Miguel Ángel / Administración" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+              <input type="text" id="despacho-autoriza" list="lista-autorizan" placeholder="Ej: Don Miguel Ángel Forero / Administración" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
               <datalist id="lista-autorizan"></datalist>
             </div>
 
@@ -264,12 +237,12 @@
 
             <div>
               <label class="block font-bold text-slate-700 uppercase mb-1">Destino / Uso</label>
-              <input type="text" id="despacho-destino" placeholder="Ej: Muelle Municipal / Obra / Almacén" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
+              <input type="text" id="despacho-destino" placeholder="Ej: Muelle Municipal / Obra" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
             </div>
 
             <div>
               <label class="block font-bold text-slate-700 uppercase mb-1">Observaciones</label>
-              <textarea id="despacho-notas" rows="2" placeholder="Detalles adicionales del despacho..." class="w-full p-2.5 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
+              <textarea id="despacho-notas" rows="2" placeholder="Detalles adicionales..." class="w-full p-2.5 rounded-xl border border-slate-300 font-medium focus:ring-2 focus:ring-blue-600 focus:outline-none"></textarea>
             </div>
           </div>
         </div>
@@ -308,14 +281,14 @@
       </div>
     </section>
 
-    <!-- 3. PESTAÑA: CATÁLOGO MAESTRO -->
+    <!-- 3. CATÁLOGO MAESTRO -->
     <section id="vista-catalogo" class="vista-seccion hidden space-y-4">
       <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 class="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
             <i class="fa-solid fa-boxes-stacked text-blue-600"></i> Catálogo Maestro de Productos
           </h2>
-          <p class="text-xs text-slate-500 mt-0.5">Administra artículos y unidades físicas registradas en la bodega.</p>
+          <p class="text-xs text-slate-500 mt-0.5">Administra artículos y unidades físicas en custodia.</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <button onclick="abrirModalProductoNuevo()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 flex items-center gap-2 transition">
@@ -355,14 +328,14 @@
       </div>
     </section>
 
-    <!-- 4. PESTAÑA: KÁRDEX / MOVIMIENTOS HISTÓRICOS -->
+    <!-- 4. KÁRDEX / MOVIMIENTOS -->
     <section id="vista-movimientos" class="vista-seccion hidden space-y-4">
       <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h2 class="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
             <i class="fa-solid fa-clock-rotate-left text-blue-600"></i> Historial de Movimientos (Kárdex)
           </h2>
-          <p class="text-xs text-slate-500 mt-0.5">Haz clic en cualquier movimiento para abrir la ventana flotante de detalle o reimprimir en POS.</p>
+          <p class="text-xs text-slate-500 mt-0.5">Detalle histórico de entradas y salidas de bodega.</p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 text-xs">
@@ -391,7 +364,7 @@
                 <th class="p-3.5">Artículo</th>
                 <th class="p-3.5">Unidad</th>
                 <th class="p-3.5 text-right">Cantidad</th>
-                <th class="p-3.5">Trazabilidad / Quién Entrega / Destino</th>
+                <th class="p-3.5">Trazabilidad / Destino</th>
                 <th class="p-3.5">Responsable</th>
                 <th class="p-3.5 text-center">Acción</th>
               </tr>
@@ -402,7 +375,7 @@
       </div>
     </section>
 
-    <!-- 5. PESTAÑA: BANDEJA ADMINISTRATIVA DE PEDIDOS RECIBIDOS -->
+    <!-- 5. BANDEJA DE PEDIDOS RECIBIDOS (DESDE SOLICITUD.HTML) -->
     <section id="vista-bandeja" class="vista-seccion hidden space-y-4">
       <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
@@ -424,6 +397,7 @@
         </div>
       </div>
 
+      <!-- Filtros de estado -->
       <div class="flex gap-2 text-xs font-bold">
         <button onclick="filtrarPedidosPorEstado('TODOS')" class="filtro-pedido-btn px-3 py-1.5 rounded-xl bg-slate-900 text-white shadow-sm" id="btn-filtro-ped-todos">Todos</button>
         <button onclick="filtrarPedidosPorEstado('Pendiente')" class="filtro-pedido-btn px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:bg-slate-50" id="btn-filtro-ped-pendiente">Pendientes</button>
@@ -451,14 +425,14 @@
       </div>
     </section>
 
-    <!-- 6. PESTAÑA: DIRECTORIO DE CONTACTOS -->
+    <!-- 6. CONTACTOS -->
     <section id="vista-contactos" class="vista-seccion hidden space-y-4">
       <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex justify-between items-center">
         <div>
           <h2 class="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
             <i class="fa-solid fa-address-book text-blue-600"></i> Directorio de Personal & Clientes
           </h2>
-          <p class="text-xs text-slate-500 mt-0.5">Personas que autorizan notas de egreso y transportadores habituales.</p>
+          <p class="text-xs text-slate-500 mt-0.5">Personas que autorizan notas de egreso y solicitantes/transportadores habituales.</p>
         </div>
         <button onclick="abrirModalContacto()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 flex items-center gap-2 transition">
           <i class="fa-solid fa-user-plus"></i> Nuevo Contacto
@@ -467,6 +441,64 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="contenedor-contactos"></div>
     </section>
   </main>
+
+  <!-- VENTANA FLOTANTE: DETALLE KÁRDEX -->
+  <div id="modal-detalle-kardex" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
+      <div id="recibo-movimiento-target" class="bg-white p-5 rounded-2xl border border-slate-200 text-slate-900 shadow-sm">
+        <div class="text-center border-b border-slate-200 pb-3 mb-3">
+          <div class="inline-block bg-blue-600 text-white font-black text-xs px-3 py-1 rounded-lg mb-1 shadow-sm">BODEGA MAF</div>
+          <h3 class="text-sm font-black uppercase tracking-tight text-slate-900" id="det-tipo-titulo">Comprobante de Movimiento</h3>
+          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Inírida, Guainía - Custodia Logística</p>
+          <p class="text-[11px] font-mono-code font-bold text-blue-700 mt-1" id="det-ref-display"></p>
+        </div>
+
+        <div class="space-y-2 text-xs">
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Fecha / Hora:</span>
+            <span class="font-semibold text-slate-800" id="det-fecha"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Tipo Operación:</span>
+            <span class="font-black" id="det-tipo-badge"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Artículo:</span>
+            <span class="font-extrabold text-slate-900 text-right" id="det-articulo"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Cantidad / Unidad:</span>
+            <span class="font-mono-code font-black text-sm text-blue-800" id="det-cantidad"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Trazabilidad / Destino:</span>
+            <span class="font-semibold text-slate-800 text-right max-w-[200px]" id="det-trazabilidad"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Responsable / Autorizado:</span>
+            <span class="font-semibold text-slate-800" id="det-responsable"></span>
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-dashed border-slate-300 text-[10px] text-slate-400 flex justify-between items-center font-mono-code">
+          <span>SISTEMA LOGÍSTICO MAF</span>
+          <span>COPIA DIGITAL</span>
+        </div>
+      </div>
+
+      <div class="mt-5 space-y-2">
+        <button onclick="reimprimirDetalleEnPOS()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 transition">
+          <i class="fa-solid fa-print"></i> Reimprimir Comprobante en Impresora POS
+        </button>
+        <button onclick="descargarDetalleEnImagenPNG()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-emerald-600/25 flex items-center justify-center gap-2 transition">
+          <i class="fa-solid fa-image"></i> Descargar Comprobante en Imagen (WhatsApp)
+        </button>
+        <button onclick="cerrarModalDetalleKardex()" class="w-full py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition">
+          Cerrar Ventana
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- MODAL: GESTIÓN DE ARTÍCULO -->
   <div id="modal-producto" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
@@ -515,7 +547,7 @@
           </div>
         </div>
         <div id="contenedor-stock-inicial">
-          <label class="block font-bold text-slate-700 uppercase mb-1">Stock Inicial de Creación</label>
+          <label class="block font-bold text-slate-700 uppercase mb-1">Stock Inicial de Creación (Opcional)</label>
           <input type="number" id="form-prod-stock-inicial" value="0" min="0" class="w-full p-2.5 rounded-xl border border-slate-300 font-mono-code font-bold">
         </div>
         <div>
@@ -526,199 +558,3 @@
 
       <div class="mt-6 flex justify-end gap-2">
         <button onclick="cerrarModalProducto()" class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-600 text-xs font-bold hover:bg-slate-50 transition">Cancelar</button>
-        <button onclick="guardarProductoCatalogo()" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-md shadow-blue-600/25 transition">Guardar en Catálogo</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: NUEVO CONTACTO -->
-  <div id="modal-contacto" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
-      <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
-        <h3 class="text-base font-black text-slate-900">Nuevo Contacto</h3>
-        <button onclick="cerrarModalContacto()" class="text-slate-400 hover:text-slate-600 text-sm">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <div class="space-y-3 text-xs">
-        <div>
-          <label class="block font-bold text-slate-700 uppercase mb-1">Nombre Completo <span class="text-rose-500">*</span></label>
-          <input type="text" id="contacto-nombre" placeholder="Nombre y Apellidos" class="w-full p-2.5 rounded-xl border border-slate-300 font-bold focus:ring-2 focus:ring-blue-600 focus:outline-none">
-        </div>
-        <div>
-          <label class="block font-bold text-slate-700 uppercase mb-1">Rol / Cargo <span class="text-rose-500">*</span></label>
-          <select id="contacto-rol" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold focus:ring-2 focus:ring-blue-600 focus:outline-none">
-            <option value="Autoriza Salida">Autoriza Salida (Directivo / Administrativo)</option>
-            <option value="Transportador Fluvial">Transportador Fluvial (Capitán / Patrón)</option>
-            <option value="Transportador Terrestre">Transportador Terrestre (Conductor / Motocarguero)</option>
-            <option value="Cliente / Solicitante">Cliente / Solicitante</option>
-            <option value="Bodeguero">Bodeguero / Operador</option>
-          </select>
-        </div>
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="block font-bold text-slate-700 uppercase mb-1">Teléfono</label>
-            <input type="text" id="contacto-tel" placeholder="Celular" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold">
-          </div>
-          <div>
-            <label class="block font-bold text-slate-700 uppercase mb-1">Cédula</label>
-            <input type="text" id="contacto-doc" placeholder="Identificación" class="w-full p-2.5 rounded-xl border border-slate-300 font-semibold">
-          </div>
-        </div>
-        <div>
-          <label class="block font-bold text-slate-700 uppercase mb-1">Notas / Empresa</label>
-          <input type="text" id="contacto-notas" placeholder="Ej: Barco Don Rafa / Obra Guainía" class="w-full p-2.5 rounded-xl border border-slate-300 font-medium">
-        </div>
-      </div>
-
-      <div class="mt-6 flex justify-end gap-2">
-        <button onclick="cerrarModalContacto()" class="px-4 py-2 rounded-xl border text-slate-600 text-xs font-bold">Cancelar</button>
-        <button onclick="guardarContacto()" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow">Guardar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- MODAL: CIERRE DIARIO -->
-  <div id="modal-cierre" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-    <div class="bg-white rounded-3xl shadow-2xl max-w-xl w-full p-5 sm:p-6 border border-slate-200 my-auto max-h-[92vh] flex flex-col">
-      <div id="cuadro-cierre-imagen" class="bg-white p-5 rounded-2xl border border-slate-200 text-slate-900 shadow-sm overflow-y-auto">
-        <div class="text-center border-b border-slate-200 pb-3 mb-3">
-          <div class="inline-block bg-blue-600 text-white font-black text-sm px-3 py-1 rounded-lg mb-1 shadow-sm">BODEGA MAF</div>
-          <h3 class="text-base font-black uppercase tracking-tight text-slate-900">Cuadre & Cierre Diario</h3>
-          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Inírida, Guainía - Almacenamiento Fluvial</p>
-          <p class="text-[11px] font-mono-code font-bold text-blue-700 mt-1" id="cierre-fecha-texto"></p>
-        </div>
-
-        <div class="space-y-3 text-xs" id="cierre-resumen-contenido"></div>
-
-        <div class="mt-4 pt-3 border-t border-dashed border-slate-300 text-[10px] text-slate-500 flex justify-between items-center">
-          <span>Generado para: <strong>Don Miguel Ángel Forero</strong></span>
-          <span class="font-mono-code">MAF-LOG</span>
-        </div>
-      </div>
-
-      <div class="mt-4 space-y-2 pt-2 border-t border-slate-100">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button onclick="guardarCierreEnSheets()" id="btn-guardar-cierre-db" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-blue-600/25 flex items-center justify-center gap-1.5 transition">
-            <i class="fa-solid fa-cloud-arrow-up"></i> Guardar en Base de Datos
-          </button>
-          <button onclick="exportarExcelCierreDiario()" class="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-emerald-700/25 flex items-center justify-center gap-1.5 transition">
-            <i class="fa-solid fa-file-excel"></i> Exportar a Excel (.xlsx)
-          </button>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button onclick="descargarImagenCierrePNG()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-emerald-600/25 flex items-center justify-center gap-1.5 transition">
-            <i class="fa-solid fa-image"></i> Descargar Imagen WhatsApp
-          </button>
-          <button onclick="imprimirCierreEnPOS()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white rounded-xl text-xs font-extrabold shadow-md shadow-indigo-600/25 flex items-center justify-center gap-1.5 transition">
-            <i class="fa-solid fa-print"></i> Imprimir en POS Térmica
-          </button>
-        </div>
-
-        <button onclick="cerrarModalCierre()" class="w-full py-2 border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition">
-          Volver
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <div id="area-impresion-pos"></div>
-
-  <!-- SCRIPT LÓGICO DE BODEGA -->
-  <script>
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsIonFrjw49piLImRkuttrulcVoJUVEMyAbZsXvjNQrSv2DV_TgJvEybyaGT_l8cMd5w/exec';
-
-    const estado = {
-      usuario: localStorage.getItem('maf_usuario') || null,
-      inventario: JSON.parse(localStorage.getItem('maf_inventario') || '[]'),
-      movimientos: JSON.parse(localStorage.getItem('maf_movimientos') || '[]'),
-      contactos: JSON.parse(localStorage.getItem('maf_contactos') || '[]'),
-      pedidos: JSON.parse(localStorage.getItem('maf_pedidos') || '[]'),
-      autorizadores: JSON.parse(localStorage.getItem('maf_autorizadores') || '[{"Nombre_Directivo":"Miguel Ángel Forero","PIN_Clave":"7412","Rol_Cargo":"Propietario / Gerencia"},{"Nombre_Directivo":"Julieth","PIN_Clave":"9632","Rol_Cargo":"Directiva / Administración"}]'),
-      movimientoSeleccionado: null,
-      filtroPedidoActual: 'TODOS'
-    };
-
-    if (estado.contactos.length === 0) {
-      estado.contactos = [
-        { id: '1', nombre: 'Don Miguel Ángel Forero', rol: 'Autoriza Salida', tel: '3100000000', doc: 'N/A', notas: 'Propietario / Director' },
-        { id: '2', nombre: 'Administración Bodega MAF', rol: 'Autoriza Salida', tel: '3120000000', doc: 'N/A', notas: 'Oficina Central' },
-        { id: '3', nombre: 'Diego (Operaciones)', rol: 'Autoriza Salida', tel: '3110000000', doc: 'N/A', notas: 'Coordinador Operativo' }
-      ];
-      guardarContactosLocal();
-    }
-
-    function setFechaActualInput() {
-      const input = document.getElementById('entrada-fecha');
-      if (input) {
-        const now = new Date();
-        now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-        input.value = now.toISOString().slice(0, 16);
-      }
-    }
-
-    function formatearFechaLegible(fechaRaw) {
-      if (!fechaRaw) return '';
-      try {
-        const d = new Date(fechaRaw);
-        if (!isNaN(d.getTime())) {
-          return d.toLocaleDateString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
-        }
-      } catch (e) {}
-      return String(fechaRaw).replace('T', ' ').replace('.000Z', '');
-    }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      if (estado.usuario) {
-        document.getElementById('modal-login').classList.add('hidden');
-        document.getElementById('label-usuario').innerText = estado.usuario;
-      }
-      setFechaActualInput();
-      renderizarCatalogo();
-      renderizarBandejaPedidos();
-      renderizarMovimientos();
-      renderizarContactos();
-      agregarFilaDespacho();
-      agregarFilaEntrada();
-      actualizarDataListContactos();
-      sincronizarConGoogleSheets();
-      setInterval(() => {
-        sincronizarConGoogleSheets();
-      }, 25000);
-    });
-
-    function ejecutarLogin(e) {
-      if (e) e.preventDefault();
-      const user = document.getElementById('login-usuario').value.trim();
-      if (user) {
-        estado.usuario = user;
-        localStorage.setItem('maf_usuario', user);
-        document.getElementById('label-usuario').innerText = user;
-        document.getElementById('modal-login').classList.add('hidden');
-      }
-    }
-
-    function cerrarSesion() {
-      if (confirm('¿Desea cerrar el turno actual y salir del sistema?')) {
-        localStorage.removeItem('maf_usuario');
-        location.reload();
-      }
-    }
-
-    function actualizarSelectsProductos() {
-      const opciones = estado.inventario.map(p => {
-        const sku = p.SKU || p.sku;
-        const nombre = p['Descripción del Producto'] || p.nombre || p.descripcion || '';
-        const unidad = p.Unidad || p.unidad || 'Unidad';
-        const stock = p['Stock Actual'] !== undefined ? p['Stock Actual'] : (p.stock || 0);
-        return { sku, nombre, unidad, stock };
-      });
-
-      const optionsHtmlEntrada = opciones.length > 0 
-        ? opciones.map(o => `<option value="${o.sku}">${o.nombre} [${o.unidad}]</option>`).join('') + '<option value="__NUEVO__">+ Escribir Producto Nuevo...</option>'
-        : '<option value="__NUEVO__">+ Registrar Producto Nuevo...</option>';
-
-      const optionsHtmlDespacho = opciones.length > 0 
-        ? opciones.map(o => `<option value="${o.sku}">${o.nombre} [${o.unidad
