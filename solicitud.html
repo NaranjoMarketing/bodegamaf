@@ -173,12 +173,7 @@
   <script>
     const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxsIonFrjw49piLImRkuttrulcVoJUVEMyAbZsXvjNQrSv2DV_TgJvEybyaGT_l8cMd5w/exec';
 
-    let inventario = [
-      { SKU: 'SKU-MAF-001', nombre: 'Purina Concentrado Engorde 40kg', unidad: 'Bulto', stock: 120 },
-      { SKU: 'SKU-MAF-002', nombre: 'Cemento Gris Estructural 50kg', unidad: 'Bulto', stock: 205 },
-      { SKU: 'SKU-MAF-003', nombre: 'Pack Cartón para Huevo (100u)', unidad: 'Paca', stock: 85 },
-      { SKU: 'SKU-MAF-004', nombre: 'Coca-Cola 350ml Vidrio Retornable', unidad: 'Caja', stock: 310 }
-    ];
+    let inventario = [];
 
     let autorizadores = [
       { Nombre_Directivo: 'Miguel Ángel Forero', PIN_Clave: '7412' },
@@ -201,7 +196,8 @@
         const res = await fetch(SCRIPT_URL);
         const data = await res.json();
         if (data && data.success) {
-          if (Array.isArray(data.inventario) && data.inventario.length > 0) {
+          // Si el inventario en Sheets está vacío (0 filas), se actualiza a lista vacía exactamente
+          if (Array.isArray(data.inventario)) {
             inventario = data.inventario.map(p => ({
               SKU: p.SKU || p.sku,
               nombre: p['Descripción del Producto'] || p.nombre || p.descripcion,
@@ -219,14 +215,21 @@
       }
     }
 
+    function generarOpcionesHTML() {
+      if (!inventario || inventario.length === 0) {
+        return '<option value="">-- No hay productos en inventario actualmente --</option>';
+      }
+      return inventario.map(p => 
+        `<option value="${p.SKU}" data-stock="${p.stock}">${p.nombre} [${p.unidad}] - Disp: ${p.stock}</option>`
+      ).join('');
+    }
+
     function agregarFilaProducto() {
       const cont = document.getElementById('contenedor-filas');
       const div = document.createElement('div');
       div.className = 'fila-solicitud flex items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80';
       
-      const opciones = inventario.map(p => 
-        `<option value="${p.SKU}" data-stock="${p.stock}">${p.nombre} [${p.unidad}] - Disp: ${p.stock}</option>`
-      ).join('');
+      const opciones = generarOpcionesHTML();
 
       div.innerHTML = `
         <select class="item-sku flex-1 p-2 rounded-lg border border-slate-300 text-xs font-semibold focus:ring-1 focus:ring-indigo-600 focus:outline-none" onchange="validarStockMaximo(this)">
@@ -244,15 +247,15 @@
     }
 
     function refrescarOpcionesProductos() {
+      const opciones = generarOpcionesHTML();
       document.querySelectorAll('.item-sku').forEach(select => {
         const valActual = select.value;
-        select.innerHTML = inventario.map(p => 
-          `<option value="${p.SKU}" data-stock="${p.stock}">${p.nombre} [${p.unidad}] - Disp: ${p.stock}</option>`
-        ).join('');
+        select.innerHTML = opciones;
         if (valActual && inventario.some(p => p.SKU === valActual)) {
           select.value = valActual;
         }
       });
+      calcularTotalBultos();
     }
 
     function validarStockMaximo(elem) {
