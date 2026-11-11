@@ -180,7 +180,6 @@
           <input type="text" id="entrada-detalle-opcional" placeholder="Ej: Lancha Rápida / Bongo / Llegada Mañana" class="w-full p-2 rounded-xl border border-slate-200 font-medium text-slate-700 focus:ring-1 focus:ring-blue-600 focus:outline-none">
         </div>
 
-        <!-- Canasta de Productos a Ingresar -->
         <div class="border-t border-slate-100 pt-4 space-y-3">
           <div class="flex justify-between items-center">
             <h3 class="text-xs font-black text-slate-800 uppercase tracking-wider">Productos y Cantidades a Ingresar</h3>
@@ -188,7 +187,6 @@
               <i class="fa-solid fa-plus"></i> Añadir Otro Artículo
             </button>
           </div>
-
           <div id="contenedor-filas-entrada" class="space-y-2.5 max-h-[350px] overflow-y-auto pr-1"></div>
         </div>
 
@@ -365,7 +363,7 @@
                 <th class="p-3.5">Unidad</th>
                 <th class="p-3.5 text-right">Cantidad</th>
                 <th class="p-3.5">Trazabilidad / Destino</th>
-                <th class="p-3.5">Responsable</th>
+                <th class="p-3.5">Responsable / Autorizado</th>
                 <th class="p-3.5 text-center">Acción</th>
               </tr>
             </thead>
@@ -442,7 +440,7 @@
     </section>
   </main>
 
-  <!-- VENTANA FLOTANTE: DETALLE KÁRDEX -->
+  <!-- VENTANA FLOTANTE: DETALLE KÁRDEX CON TODA LA INFORMACIÓN -->
   <div id="modal-detalle-kardex" class="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200">
       <div id="recibo-movimiento-target" class="bg-white p-5 rounded-2xl border border-slate-200 text-slate-900 shadow-sm">
@@ -463,20 +461,32 @@
             <span class="font-black" id="det-tipo-badge"></span>
           </div>
           <div class="flex justify-between py-1 border-b border-slate-100">
-            <span class="text-slate-500 font-bold">Artículo:</span>
-            <span class="font-extrabold text-slate-900 text-right" id="det-articulo"></span>
+            <span class="text-slate-500 font-bold">Código SKU:</span>
+            <span class="font-mono-code font-bold text-slate-700" id="det-sku"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Artículo / Producto:</span>
+            <span class="font-extrabold text-slate-900 text-right max-w-[220px]" id="det-articulo"></span>
           </div>
           <div class="flex justify-between py-1 border-b border-slate-100">
             <span class="text-slate-500 font-bold">Cantidad / Unidad:</span>
             <span class="font-mono-code font-black text-sm text-blue-800" id="det-cantidad"></span>
           </div>
           <div class="flex justify-between py-1 border-b border-slate-100">
-            <span class="text-slate-500 font-bold">Trazabilidad / Destino:</span>
-            <span class="font-semibold text-slate-800 text-right max-w-[200px]" id="det-trazabilidad"></span>
+            <span class="text-slate-500 font-bold" id="det-label-autoriza">¿Quién Autorizó?:</span>
+            <span class="font-bold text-indigo-700 text-right" id="det-autoriza"></span>
           </div>
           <div class="flex justify-between py-1 border-b border-slate-100">
-            <span class="text-slate-500 font-bold">Responsable / Autorizado:</span>
-            <span class="font-semibold text-slate-800" id="det-responsable"></span>
+            <span class="text-slate-500 font-bold" id="det-label-recibe">¿Quién Recibe / Retira?:</span>
+            <span class="font-semibold text-slate-800 text-right max-w-[220px]" id="det-recibe"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Destino / Uso / Obra:</span>
+            <span class="font-semibold text-slate-800 text-right max-w-[220px]" id="det-destino"></span>
+          </div>
+          <div class="flex justify-between py-1 border-b border-slate-100">
+            <span class="text-slate-500 font-bold">Modalidad / Concepto:</span>
+            <span class="font-medium text-slate-600 text-right" id="det-modalidad"></span>
           </div>
         </div>
 
@@ -766,7 +776,7 @@
         ? opciones.map(o => `<option value="${o.sku}">${o.nombre} [${o.unidad}]</option>`).join('') + '<option value="__NUEVO__">+ Escribir Producto Nuevo...</option>'
         : '<option value="__NUEVO__">+ Registrar Producto Nuevo...</option>';
 
-      const optionsHtmlDespacho = opciones.length > 0
+      const optionsHtmlDespacho = opciones.length > 0 
         ? opciones.map(o => `<option value="${o.sku}">${o.nombre} [${o.unidad}] - Disp: ${o.stock}</option>`).join('')
         : '<option value="">-- No hay productos en inventario --</option>';
 
@@ -1030,36 +1040,82 @@
       agregarFilaEntrada();
     }
 
-    // 2. KÁRDEX
+    // 2. MÓDULO: KÁRDEX & VENTANA FLOTANTE DE DETALLE
+    function normalizarMovimiento(m) {
+      const fecha = m.Fecha || m['Fecha'] || m['Fecha Despacho'] || m['Fecha Ingreso'] || '';
+      const ref = m['Documento Referencia'] || m['Documento Ref.'] || m.Referencia || m['No. Orden Despacho'] || m['No. Remisión / Manifiesto'] || m['ID Salida'] || m['ID Entrada'] || 'S/R';
+      const tipo = (m['Tipo Movimiento'] || m.Tipo || (m['ID Salida'] ? 'SALIDA' : (m['ID Entrada'] ? 'ENTRADA' : 'MOV'))).toUpperCase();
+      
+      let sku = m.SKU || m['SKU'] || '';
+      let prod = m.Producto || m['Producto'] || m['Producto / Descripción'] || m['Descripcion'] || '';
+      let unidad = m.Unidad || m['Unidad'] || 'Unidad';
+      
+      if ((prod === 'Bulto' || prod === 'Paca' || prod === 'Caja' || prod === 'Cartón' || prod === 'Unidad') && sku && !sku.startsWith('SKU-')) {
+        unidad = prod;
+        prod = sku;
+        sku = 'S/K';
+      }
+      
+      const cant = Number(m.Cantidad || m['Cantidad'] || 0);
+      const destino = m['Destinatario / Obra'] || m['Destino'] || m['Trazabilidad / Destino'] || m.Trazabilidad || 'Bodega Central';
+      const autoriza = m['Autorizado Por'] || m['Autoriza'] || m['Responsable / Autorizado'] || (tipo === 'ENTRADA' ? 'Administración' : 'Directiva MAF');
+      const retira = m['Despachador Responsable'] || m['Solicitante'] || m['Responsable Recepción'] || m.Responsable || 'Operador';
+      const modalidad = m['Modalidad Despacho'] || m['Concepto'] || (tipo === 'ENTRADA' ? 'Ingreso Bodega' : 'Retiro en Bodega');
+
+      return {
+        fecha: formatearFechaLegible(fecha),
+        ref: ref,
+        tipo: tipo,
+        sku: sku,
+        producto: prod || 'Artículo',
+        unidad: unidad,
+        cantidad: cant,
+        destino: destino,
+        autoriza: autoriza,
+        retira: retira,
+        modalidad: modalidad,
+        raw: m
+      };
+    }
+
     function renderizarMovimientos(lista = null) {
       const tbody = document.getElementById('tbody-movimientos');
+      if (!tbody) return;
       tbody.innerHTML = '';
       const datos = lista || estado.movimientos;
 
-      datos.forEach((m, idx) => {
-        const tipo = (m['Tipo Movimiento'] || m.Tipo || 'MOV').toUpperCase();
-        const colorTipo = tipo === 'ENTRADA' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800';
-        const fechaLimpia = formatearFechaLegible(m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho']);
-        const ref = m['Documento Referencia'] || m.Referencia || m['No. Orden Despacho'] || m['No. Remisión / Manifiesto'] || 'S/R';
-        const producto = m.Producto || m['Producto / Descripción'] || '';
-        const unidad = m.Unidad || '';
-        const cantidad = m.Cantidad || 0;
-        const trazabilidad = m.Trazabilidad || m['Destinatario / Obra'] || m['Embarcación / Transporte Fluvial'] || '';
-        const responsable = m.Responsable || m['Autorizado Por'] || m['Responsable Recepción'] || '';
+      if (!datos || datos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-slate-400 italic font-semibold">No hay movimientos registrados en el kárdex todavía.</td></tr>';
+        return;
+      }
+
+      datos.forEach((mRaw, idx) => {
+        const m = normalizarMovimiento(mRaw);
+        const colorTipo = m.tipo === 'ENTRADA' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800';
 
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-blue-50/50 cursor-pointer transition border-b border-slate-100';
+        tr.className = 'hover:bg-blue-50/50 cursor-pointer transition border-b border-slate-100 text-xs';
         tr.innerHTML = `
-          <td class="p-3.5 font-mono-code text-slate-600">${fechaLimpia}</td>
-          <td class="p-3.5 font-mono-code font-bold text-slate-800">${ref}</td>
+          <td class="p-3.5 font-mono-code text-slate-600">${m.fecha}</td>
+          <td class="p-3.5 font-mono-code font-bold text-slate-800">${m.ref}</td>
           <td class="p-3.5 text-center">
-            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${colorTipo}">${tipo}</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${colorTipo}">${m.tipo}</span>
           </td>
-          <td class="p-3.5 font-bold text-slate-900">${producto}</td>
-          <td class="p-3.5 text-slate-600">${unidad}</td>
-          <td class="p-3.5 text-right font-black font-mono-code text-slate-900 text-sm">${cantidad}</td>
-          <td class="p-3.5 text-slate-600 truncate max-w-[200px]" title="${trazabilidad}">${trazabilidad}</td>
-          <td class="p-3.5 text-slate-700 font-semibold">${responsable}</td>
+          <td class="p-3.5 font-bold text-slate-900">
+            <div>${m.producto}</div>
+            ${m.sku && m.sku !== 'S/K' ? `<span class="text-[10px] font-mono-code text-slate-400 block">${m.sku}</span>` : ''}
+          </td>
+          <td class="p-3.5 text-slate-600">${m.unidad}</td>
+          <td class="p-3.5 text-right font-black font-mono-code text-slate-900 text-sm">${m.cantidad}</td>
+          <td class="p-3.5 text-slate-600 max-w-[180px]">
+            <div class="font-bold text-slate-800 truncate" title="${m.destino}">${m.destino}</div>
+            <div class="text-[10px] text-slate-400">${m.retira ? (m.tipo === 'ENTRADA' ? 'Entrega: ' : 'Retira: ') + m.retira : ''}</div>
+          </td>
+          <td class="p-3.5 text-slate-700 font-semibold max-w-[140px]">
+            <span class="inline-block bg-slate-100 px-2 py-0.5 rounded text-[11px] font-bold text-slate-800">
+              ${m.autoriza}
+            </span>
+          </td>
           <td class="p-3.5 text-center">
             <button onclick="event.stopPropagation(); abrirModalDetalleKardex(${idx});" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 mx-auto">
               <i class="fa-solid fa-eye"></i> Detalle
@@ -1072,31 +1128,31 @@
     }
 
     function abrirModalDetalleKardex(idx) {
-      const m = estado.movimientos[idx];
-      if (!m) return;
+      const mRaw = estado.movimientos[idx];
+      if (!mRaw) return;
+      const m = normalizarMovimiento(mRaw);
       estado.movimientoSeleccionado = m;
 
-      const tipo = (m['Tipo Movimiento'] || m.Tipo || 'MOV').toUpperCase();
-      const fechaLimpia = formatearFechaLegible(m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho']);
-      const ref = m['Documento Referencia'] || m.Referencia || m['No. Orden Despacho'] || m['No. Remisión / Manifiesto'] || 'S/R';
-      const producto = m.Producto || m['Producto / Descripción'] || '';
-      const unidad = m.Unidad || 'Unidad';
-      const cantidad = m.Cantidad || 0;
-      const trazabilidad = m.Trazabilidad || m['Destinatario / Obra'] || m['Embarcación / Transporte Fluvial'] || 'Bodega MAF';
-      const responsable = m.Responsable || m['Autorizado Por'] || m['Responsable Recepción'] || 'Operador MAF';
-
-      document.getElementById('det-tipo-titulo').innerText = tipo === 'ENTRADA' ? 'Comprobante de Entrada' : 'Comprobante de Salida / Despacho';
-      document.getElementById('det-ref-display').innerText = 'REF: ' + ref;
-      document.getElementById('det-fecha').innerText = fechaLimpia;
+      document.getElementById('det-tipo-titulo').innerText = m.tipo === 'ENTRADA' ? 'Comprobante de Entrada' : 'Orden de Egreso / Despacho';
+      document.getElementById('det-ref-display').innerText = 'REF: ' + m.ref;
+      document.getElementById('det-fecha').innerText = m.fecha;
       
       const badge = document.getElementById('det-tipo-badge');
-      badge.innerText = tipo;
-      badge.className = tipo === 'ENTRADA' ? 'text-emerald-700 font-black' : 'text-blue-700 font-black';
+      badge.innerText = m.tipo;
+      badge.className = m.tipo === 'ENTRADA' ? 'text-emerald-700 font-black' : 'text-blue-700 font-black';
 
-      document.getElementById('det-articulo').innerText = producto;
-      document.getElementById('det-cantidad').innerText = `${cantidad} ${unidad}`;
-      document.getElementById('det-trazabilidad').innerText = trazabilidad;
-      document.getElementById('det-responsable').innerText = responsable;
+      document.getElementById('det-sku').innerText = m.sku || 'S/K';
+      document.getElementById('det-articulo').innerText = m.producto;
+      document.getElementById('det-cantidad').innerText = `${m.cantidad} ${m.unidad}`;
+      
+      document.getElementById('det-label-autoriza').innerText = m.tipo === 'ENTRADA' ? 'Responsable Recepción:' : '¿Quién Autorizó?:';
+      document.getElementById('det-autoriza').innerText = m.autoriza;
+
+      document.getElementById('det-label-recibe').innerText = m.tipo === 'ENTRADA' ? '¿Quién Entregó?:' : '¿Quién Retira / Recibe?:';
+      document.getElementById('det-recibe').innerText = m.retira;
+
+      document.getElementById('det-destino').innerText = m.destino || 'Bodega Central';
+      document.getElementById('det-modalidad').innerText = m.modalidad;
 
       document.getElementById('modal-detalle-kardex').classList.remove('hidden');
     }
@@ -1109,30 +1165,23 @@
       const m = estado.movimientoSeleccionado;
       if (!m) return;
 
-      const tipo = (m['Tipo Movimiento'] || m.Tipo || 'MOV').toUpperCase();
-      const fechaLimpia = formatearFechaLegible(m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho']);
-      const ref = m['Documento Referencia'] || m.Referencia || m['No. Orden Despacho'] || 'S/R';
-      const producto = m.Producto || m['Producto / Descripción'] || '';
-      const unidad = m.Unidad || 'Unidad';
-      const cantidad = m.Cantidad || 0;
-      const trazabilidad = m.Trazabilidad || m['Destinatario / Obra'] || 'Bodega MAF';
-      const responsable = m.Responsable || m['Autorizado Por'] || 'Operador MAF';
-
       const area = document.getElementById('area-impresion-pos');
       area.innerHTML = `
         <div style="text-align:center; font-weight:bold; font-size:13px;">BODEGA MAF</div>
-        <div style="text-align:center; font-size:10px;">${tipo === 'ENTRADA' ? 'COMPROBANTE DE ENTRADA' : 'ORDEN DE EGRESO DE BODEGA'}</div>
+        <div style="text-align:center; font-size:10px;">${m.tipo === 'ENTRADA' ? 'COMPROBANTE DE ENTRADA' : 'ORDEN DE EGRESO DE BODEGA'}</div>
         <div style="text-align:center; font-size:9px;">Inírida, Guainía</div>
         <hr style="border-top:1px dashed #000; margin: 4px 0;">
-        <div style="font-size:10px;"><strong>No. Ref:</strong> ${ref}</div>
-        <div style="font-size:10px;"><strong>Fecha:</strong> ${fechaLimpia}</div>
-        <div style="font-size:10px;"><strong>Tipo:</strong> ${tipo}</div>
-        <div style="font-size:10px;"><strong>${tipo === 'ENTRADA' ? 'Entrega:' : 'Retira:'}</strong> ${trazabilidad}</div>
-        <div style="font-size:10px;"><strong>Responsable:</strong> ${responsable}</div>
+        <div style="font-size:10px;"><strong>No. Ref:</strong> ${m.ref}</div>
+        <div style="font-size:10px;"><strong>Fecha:</strong> ${m.fecha}</div>
+        <div style="font-size:10px;"><strong>Tipo:</strong> ${m.tipo}</div>
+        ${m.sku && m.sku !== 'S/K' ? `<div style="font-size:10px;"><strong>SKU:</strong> ${m.sku}</div>` : ''}
+        <div style="font-size:10px;"><strong>${m.tipo === 'ENTRADA' ? 'Entrega:' : 'Retira:'}</strong> ${m.retira}</div>
+        <div style="font-size:10px;"><strong>${m.tipo === 'ENTRADA' ? 'Receptor:' : 'Autoriza:'}</strong> ${m.autoriza}</div>
+        ${m.destino ? `<div style="font-size:10px;"><strong>Destino:</strong> ${m.destino}</div>` : ''}
         <hr style="border-top:1px dashed #000; margin: 4px 0;">
         <div style="display:flex; justify-content:space-between; margin-bottom: 2px; font-size:11px;">
-          <span>${producto} (${unidad})</span>
-          <strong>${cantidad}</strong>
+          <span>${m.producto} (${m.unidad})</span>
+          <strong>${m.cantidad}</strong>
         </div>
         <hr style="border-top:1px dashed #000; margin: 6px 0;">
         <br><br>
@@ -1143,7 +1192,7 @@
 
     function descargarDetalleEnImagenPNG() {
       const elemento = document.getElementById('recibo-movimiento-target');
-      const ref = (estado.movimientoSeleccionado && (estado.movimientoSeleccionado.Referencia || estado.movimientoSeleccionado['No. Orden Despacho'])) || 'MOV';
+      const ref = (estado.movimientoSeleccionado && estado.movimientoSeleccionado.ref) || 'MOV';
       html2canvas(elemento, { scale: 2 }).then(canvas => {
         const link = document.createElement('a');
         link.download = `Comprobante_Bodega_MAF_${ref}.png`;
@@ -1161,9 +1210,9 @@
         return;
       }
 
-      const filtrados = estado.movimientos.filter(m => {
-        const fechaStr = m.Fecha || m['Fecha Ingreso'] || m['Fecha Despacho'] || '';
-        return (!desde || fechaStr >= desde) && (!hasta || fechaStr <= (hasta + ' 23:59:59'));
+      const filtrados = estado.movimientos.filter(mRaw => {
+        const m = normalizarMovimiento(mRaw);
+        return (!desde || m.fecha >= desde) && (!hasta || m.fecha <= (hasta + ' 23:59:59'));
       });
 
       renderizarMovimientos(filtrados);
@@ -1891,7 +1940,7 @@
             ? (m.Trazabilidad ? m.Trazabilidad.replace('Entrega:', '').trim() : 'Proveedor')
             : (m.Responsable || 'Dirección MAF');
             
-          const recibe = esEntrada
+          const recibe = esEntrada 
             ? (m.Responsable || 'Bodeguero')
             : (m.Trazabilidad || 'Solicitante / Obra');
 
